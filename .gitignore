@@ -1,0 +1,9 @@
+.DS_Store
+__pycache__/
+*.pyc
+.env
+*.log
+data/
+resume/profile.json
+loop_agent_v1/data/
+loop_agent_v2/data/
