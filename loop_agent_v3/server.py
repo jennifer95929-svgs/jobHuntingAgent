@@ -27,7 +27,10 @@ from mcp.types import (
     PaginatedRequestParams, CallToolRequestParams,
 )
 
-from tools import search_jobs, scan_page, page_text, screenshot, inspect_company, apply, check_messages
+from tools import (
+    search_jobs, scan_page, page_text, screenshot, inspect_company,
+    apply, check_messages, chat_draft, chat_send, list_drafts,
+)
 
 app = Server("boss-job-hunter-v3")
 
@@ -67,6 +70,24 @@ TOOL_DEFS = [
         {"type": "object", "properties": {}},
     ),
     (
+        "chat_draft",
+        "生成 HR 回复草案(不直接发送!)。打开聊天页读取未读消息,为每条生成回复模板保存到 data/chat_drafts.json,状态为 pending。回复需用户确认后再调 chat_send 发送",
+        {"type": "object", "properties": {}},
+    ),
+    (
+        "chat_send",
+        "发送已确认的回复草案。默认发指定 draft_id;all_pending=true 时批量发送所有 pending 草案。只有用户确认过的草案才发送",
+        {"type": "object", "properties": {
+            "draft_id": {"type": "string", "description": "要发送的草案ID(来自 chat_draft 返回),留空配合 all_pending"},
+            "all_pending": {"type": "boolean", "description": "是否批量发送所有 pending 草案"},
+        }},
+    ),
+    (
+        "list_drafts",
+        "列出所有回复草案及状态(pending/approved/sent),供用户审批",
+        {"type": "object", "properties": {}},
+    ),
+    (
         "page_text",
         "读取当前页文本内容(截断2000字符),用于确认页面状态",
         {"type": "object", "properties": {}},
@@ -102,6 +123,12 @@ def _dispatch(name: str, args: dict) -> dict:
         return apply(**args)
     if name == "check_messages":
         return check_messages()
+    if name == "chat_draft":
+        return chat_draft()
+    if name == "chat_send":
+        return chat_send(draft_id=args.get("draft_id", ""), all_pending=bool(args.get("all_pending", False)))
+    if name == "list_drafts":
+        return list_drafts()
     if name == "page_text":
         return page_text()
     if name == "screenshot":

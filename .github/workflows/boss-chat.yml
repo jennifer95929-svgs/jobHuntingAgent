@@ -1,0 +1,86 @@
+name: Boss Chat Approval
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "操作: draft=生成草案, send=发送已批准草案"
+        type: choice
+        options:
+          - draft
+          - send
+        default: draft
+      draft_id:
+        description: "要发送的草案ID (action=send 时填写, 留空=发送所有 approved)"
+        type: string
+        default: ""
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  chat:
+    runs-on: [self-hosted, macos, local]
+    timeout-minutes: 15
+    steps:
+      - name: Run chat action
+        id: chat
+        env:
+          ACTION: ${{ inputs.action }}
+          DRAFT_ID: ${{ inputs.draft_id }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd "$HOME/job-agent"
+          VENV_PY=loop_agent_v3/.venv/bin/python
+          echo "=== 动作: $ACTION ==="
+          if [ "$ACTION" = "draft" ]; then
+            $VENV_PY loop_agent_v3/cli.py draft > /tmp/chat_draft_result.json 2>/tmp/chat_err.log || true
+            cat /tmp/chat_draft_result.json
+            echo ""
+            cat /tmp/chat_err.log | head -5 || true
+          else
+            $VENV_PY loop_agent_v3/cli.py send "$DRAFT_ID" > /tmp/chat_send_result.json 2>/tmp/chat_err.log || true
+            cat /tmp/chat_send_result.json
+            echo ""
+            cat /tmp/chat_err.log | head -5 || true
+          fi
+
+      - name: Create approval issue (draft only)
+        if: inputs.action == 'draft'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 << 'EOF'
+          import json, subprocess, os
+
+          try:
+              data = json.load(open('/tmp/chat_draft_result.json'))
+          except Exception:
+              print("无草案结果, 跳过 issue")
+              exit(0)
+
+          drafts = data.get('drafts', [])
+          if not drafts:
+              print("无待审批草案")
+              exit(0)
+
+          lines = ["## HR 回复审批请求", "", "检测到以下未读 HR 消息, 请审批回复方案:", ""]
+          for d in drafts:
+              lines.append(f"- **消息**: {d.get('hr_msg','')}")
+              lines.append(f"- **草案ID**: `{d.get('id')}` | 状态: {d.get('status','')}")
+              lines.append("")
+          lines.append("### 如何审批")
+          lines.append("1. 查看草案 ID")
+          lines.append("2. 在 Actions 页面运行 **Boss Chat Approval** workflow, 选择 action=`send`, 填入要发送的草案ID")
+          lines.append("3. 或一次发送所有: action=`send`, draft_id 留空, 勾选发送全部")
+
+          body = "\n".join(lines)
+          title = f"[HR审批] {len(drafts)} 条回复待确认"
+          r = subprocess.run(
+              ["/Users/xx/bin/gh", "issue", "create", "--repo", "jennifer95929-svgs/jobHuntingAgent",
+               "--title", title, "--body", body],
+              capture_output=True, text=True
+          )
+          print("issue:", r.stdout.strip() if r.stdout else r.stderr.strip())
+          EOF

@@ -32,7 +32,7 @@ def search_jobs(keyword: str, city: str) -> dict:
 
 
 def scan_page() -> dict:
-    """提取当前搜索页岗位列表(截断 MAX_JOBS_RETURN 条),并用 canvas 解码器还原薪资。"""
+    """提取当前搜索页岗位列表(截断 MAX_JOBS_RETURN 条),并解码 PUA 加密薪资。"""
     s = _session()
     # 进程内 session 可能还没有 _search_tab_ws(如 CLI 跨进程测试):
     # 自动找回当前打开的 BOSS 搜索 tab
@@ -63,33 +63,10 @@ def _find_search_tab_ws():
 
 
 def _decode_salaries() -> list:
-    """在页面内执行 canvas 字形识别,把 PUA 薪资数字还原为可读文本。"""
+    """解码 BOSS 加密薪资: 固定映射优先, 字体解析兜底。"""
     try:
-        from salary_decode import build_decoder_js
-        from browser.agent_browser_cli import AgentBrowser
-        b = AgentBrowser()
-        tab = b._get_boss_tab()
-        if not tab:
-            return []
-        ws = tab["webSocketDebuggerUrl"]
-        import asyncio, websockets
-        from browser.agent_browser_cli import CDPClient
-
-        async def go():
-            async with websockets.connect(ws, close_timeout=10) as w:
-                c = CDPClient("")
-                c._ws = w
-                raw = await c.evaluate(build_decoder_js())
-                import json as _j
-                try:
-                    return _j.loads(raw).get("decoded", [])
-                except (TypeError, ValueError):
-                    return []
-        loop = asyncio.new_event_loop()
-        try:
-            return loop.run_until_complete(go())
-        finally:
-            loop.close()
+        from salary_decode import decode_salaries_from_page
+        return decode_salaries_from_page()
     except Exception:
         return []
 
