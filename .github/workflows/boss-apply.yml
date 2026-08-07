@@ -51,13 +51,7 @@ jobs:
 
       - name: Verify BOSS login state
         run: |
-          python3 -c "
-          import json, urllib.request
-          tabs = json.loads(urllib.request.urlopen('http://127.0.0.1:9222/json', timeout=5).read())
-          url = [t for t in tabs if t.get('type')=='page'][0].get('url','')
-          print('current tab:', url[:80])
-          print('NEED_LOGIN' if 'login' in url.lower() else 'LOGIN_STATE_OK')
-          "
+          python3 -c "import json,urllib.request as u; tabs=json.loads(u.urlopen('http://127.0.0.1:9222/json',timeout=5).read()); url=[t for t in tabs if t.get('type')=='page'][0].get('url',''); print('current tab:',url[:80]); print('NEED_LOGIN' if 'login' in url.lower() else 'LOGIN_STATE_OK')"
 
       - name: Run job search
         id: search
@@ -83,35 +77,14 @@ jobs:
             echo "=== 提取职位列表 ==="
             sleep 3
             $VENV_PY loop_agent_v3/cli.py scan > /tmp/scan_result.json 2>/tmp/scan_err.log || true
-            python3 -c "
-import json, os
-data = json.load(open('/tmp/scan_result.json'))
-jobs = data.get('jobs', []) if isinstance(data, dict) else data
-print(f'找到 {len(jobs)} 个职位:')
-for j in jobs:
-    print(f\"  - {j.get('title','?')} | {j.get('company','?')} | {j.get('salary','?')} | id={j.get('id','?')}\")
-ids = json.load(open('/tmp/job_ids.json')) if os.path.exists('/tmp/job_ids.json') else []
-existing = set(j.get('id') for j in ids)
-for j in jobs:
-    jid = j.get('id','')
-    if jid and jid not in existing:
-        ids.append({'id': jid, 'title': j.get('title',''), 'company': j.get('company',''), 'salary': j.get('salary','')})
-        existing.add(jid)
-with open('/tmp/job_ids.json','w') as f:
-    json.dump(ids, f, ensure_ascii=False)
-"
+            python3 "$PROJECT_DIR/scripts/merge_jobs.py" /tmp/scan_result.json /tmp/job_ids.json
+            cat /tmp/scan_err.log | head -3 || true
             cat /tmp/scan_err.log | head -3 || true
             sleep 2
           done
           echo ""
           echo "=== 汇总 ==="
-          python3 -c "
-import json
-jobs = json.load(open('/tmp/job_ids.json'))
-print(f'累计收集 {len(jobs)} 个职位:')
-for j in jobs[:15]:
-    print(f\"  - {j.get('title','?')} | {j.get('company','?')} | {j.get('salary','?')} | id={j.get('id','?')}\")
-" 2>/dev/null || echo "无职位"
+          python3 "$PROJECT_DIR/scripts/merge_jobs.py" /tmp/job_ids.json /tmp/job_ids.json --summary 2>/dev/null || echo "无职位"
 
       - name: Apply to jobs
         id: apply-jobs
@@ -125,35 +98,7 @@ for j in jobs[:15]:
             exit 0
           fi
           echo "=== 开始投递 (最多 $MAX_APPLY 个) ==="
-          python3 -c "
-          import json, subprocess, sys
-          jobs = json.load(open('/tmp/job_ids.json'))
-          max_apply = int('$MAX_APPLY')
-          results = []
-          for j in jobs[:max_apply]:
-              jid = j.get('id','')
-              if not jid:
-                  continue
-              title = j.get('title','')
-              company = j.get('company','')
-              print(f\"投递: {title} ({company}) id={jid}\", flush=True)
-              r = subprocess.run(
-                  [sys.executable, 'loop_agent_v3/cli.py', 'apply', jid, title, company],
-                  capture_output=True, text=True, timeout=60
-              )
-              out = r.stdout.strip()
-              print(f\"  结果: {out}\", flush=True)
-              try:
-                  parsed = json.loads(out)
-                  results.append({'job_id': jid, 'title': title, 'applied': parsed.get('applied'), 'reason': parsed.get('reason','')})
-              except Exception:
-                  results.append({'job_id': jid, 'title': title, 'applied': False, 'reason': out[:100]})
-          with open('/tmp/apply_results.json','w') as f:
-              json.dump(results, f, ensure_ascii=False, indent=2)
-          applied = sum(1 for r in results if r.get('applied'))
-          skipped = len(results) - applied
-          print(f'=== 投递完成: 成功 {applied}, 跳过/失败 {skipped} ===')
-          " 2>&1
+          python3 "$PROJECT_DIR/scripts/apply_jobs.py" "$MAX_APPLY" 2>&1
           echo ""
           echo "=== 投递明细 ==="
           cat /tmp/apply_results.json 2>/dev/null || echo "(无结果)"
