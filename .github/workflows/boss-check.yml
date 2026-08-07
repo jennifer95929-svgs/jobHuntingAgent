@@ -1,0 +1,24 @@
+name: Boss Environment Check
+
+on:
+  workflow_dispatch:
+    inputs:
+      start_chrome:
+        description: "是否自动启动 Chrome (false 则仅检查已有实例)"
+        type: boolean
+        default: true
+
+jobs:
+  check:
+    runs-on: [self-hosted, macos, local]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run environment check
+        env:
+          BOSS_PROFILE_DIR: ${{ runner.home }}/boss-chrome-profile
+          BOSS_ENV_FILE: ${{ runner.home }}/job-agent.env
+        run: |
+          chmod +x scripts/check_environment.sh
+          bash scripts/check_environment.sh
