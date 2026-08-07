@@ -1,0 +1,83 @@
+name: Boss Apply
+
+on:
+  workflow_dispatch:
+    inputs:
+      keyword:
+        description: "搜索关键词（如: AI产品经理）"
+        type: string
+        default: "AI产品经理"
+      city:
+        description: "城市（如: 深圳）"
+        type: string
+        default: "深圳"
+      max_apply:
+        description: "本轮最多投递数"
+        type: number
+        default: 5
+
+jobs:
+  apply:
+    runs-on: [self-hosted, macos, local]
+    timeout-minutes: 30
+    env:
+      OPENAI_API_KEY: ${{ secrets.LLM_API_KEY }}
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+      LLM_MODEL: ${{ secrets.LLM_MODEL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ensure Chrome with debug port
+        run: |
+          CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+          PROFILE="$HOME/boss-chrome-profile"
+          if ! curl -s --connect-timeout 3 "http://127.0.0.1:9222/json/version" > /dev/null 2>&1; then
+            mkdir -p "$PROFILE"
+            nohup "$CHROME" --remote-debugging-port=9222 --user-data-dir="$PROFILE" \
+              --no-first-run --no-default-browser-check about:blank \
+              > /tmp/boss-chrome.log 2>&1 &
+            for i in $(seq 1 15); do
+              curl -s --connect-timeout 2 "http://127.0.0.1:9222/json/version" > /dev/null 2>&1 && break
+              sleep 1
+            done
+          fi
+          echo "Chrome debug port ready"
+
+      - name: Verify BOSS login state
+        run: |
+          python3 -c "
+          import json, urllib.request
+          tabs = json.loads(urllib.request.urlopen('http://127.0.0.1:9222/json', timeout=5).read())
+          url = [t for t in tabs if t.get('type')=='page'][0].get('url','')
+          print('current tab:', url[:80])
+          print('NEED_LOGIN' if 'login' in url.lower() else 'LOGIN_STATE_OK')
+          "
+
+      - name: Setup v3 deps
+        run: |
+          python3 -m pip install --quiet --user mcp openai python-dotenv websockets 2>/dev/null || true
+          python3 -c "import mcp, websockets, dotenv; print('deps OK')"
+
+      - name: Run job search + apply
+        id: apply
+        env:
+          KEYWORD: ${{ inputs.keyword }}
+          CITY: ${{ inputs.city }}
+          MAX_APPLY: ${{ inputs.max_apply }}
+        run: |
+          echo "=== 搜索: $KEYWORD / $CITY ==="
+          python3 loop_agent_v3/cli.py search "$KEYWORD" "$CITY" > /tmp/search_result.json 2>/tmp/search_err.log || true
+          head -c 1500 /tmp/search_result.json
+          echo ""
+          cat /tmp/search_err.log | head -10 || true
+
+      - name: Upload history artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apply-history
+          path: |
+            data/history.json
+            loop_agent_v3/data/
+          if-no-files-found: ignore
