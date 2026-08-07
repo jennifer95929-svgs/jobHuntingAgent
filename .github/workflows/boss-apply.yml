@@ -27,6 +27,9 @@ jobs:
       LLM_MODEL: ${{ secrets.LLM_MODEL }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          clean: true
 
       - name: Ensure Chrome with debug port
         run: |
