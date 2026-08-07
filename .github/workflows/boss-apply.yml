@@ -14,12 +14,18 @@ on:
       max_apply:
         description: "本轮最多投递数"
         type: number
-        default: 5
+        default: 50
+  # 每天自动投递 (北京时间 09:00 = UTC 01:00)
+  schedule:
+    - cron: "0 1 * * *"
+
+permissions:
+  contents: read
 
 jobs:
   apply:
     runs-on: [self-hosted, macos, local]
-    timeout-minutes: 30
+    timeout-minutes: 120
     env:
       LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
       LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
@@ -59,7 +65,7 @@ jobs:
       - name: Run job search
         id: search
         env:
-          KEYWORD: ${{ inputs.keyword }}
+          KEYWORDS: ${{ inputs.keyword }}
           CITY: ${{ inputs.city }}
         run: |
           cd "$PROJECT_DIR"
@@ -68,26 +74,50 @@ jobs:
             python3 -m venv loop_agent_v3/.venv
             loop_agent_v3/.venv/bin/pip install --quiet --only-binary=:all: -i https://pypi.tuna.tsinghua.edu.cn/simple mcp openai python-dotenv websockets
           fi
-          echo "=== 搜索: $KEYWORD / $CITY ==="
-          $VENV_PY loop_agent_v3/cli.py search "$KEYWORD" "$CITY" > /tmp/search_result.json 2>/tmp/search_err.log || true
-          cat /tmp/search_result.json
+          # 支持逗号分隔的多关键词
+          IFS=',' read -ra KW_LIST <<< "$KEYWORDS"
+          > /tmp/job_ids.json
+          for KW in "${KW_LIST[@]}"; do
+            KW=$(echo "$KW" | xargs)  # 去空格
+            echo "=== 搜索: $KW / $CITY ==="
+            $VENV_PY loop_agent_v3/cli.py search "$KW" "$CITY" > /tmp/search_result.json 2>/tmp/search_err.log || true
+            cat /tmp/search_result.json
+            echo ""
+            echo "=== 提取职位列表 ==="
+            sleep 3
+            $VENV_PY loop_agent_v3/cli.py scan > /tmp/scan_result.json 2>/tmp/scan_err.log || true
+            python3 -c "
+            import json
+            try:
+                data = json.load(open('/tmp/scan_result.json'))
+                jobs = data.get('jobs', []) if isinstance(data, dict) else data
+                print(f'找到 {len(jobs)} 个职位:')
+                for j in jobs:
+                    print(f\"  - {j.get('title','?')} | {j.get('company','?')} | {j.get('salary','?')} | id={j.get('id','?')}\")
+                ids = json.load(open('/tmp/job_ids.json')) if __import__('os').path.exists('/tmp/job_ids.json') else []
+                existing = set(j.get('id') for j in ids)
+                for j in jobs:
+                    jid = j.get('id','')
+                    if jid and jid not in existing:
+                        ids.append({'id': jid, 'title': j.get('title',''), 'company': j.get('company',''), 'salary': j.get('salary','')})
+                        existing.add(jid)
+                with open('/tmp/job_ids.json','w') as f:
+                    json.dump(ids, f, ensure_ascii=False)
+            except Exception as e:
+                print('解析失败:', e)
+            "
+            cat /tmp/scan_err.log | head -3 || true
+            sleep 2
+          done
           echo ""
-          echo "=== 提取职位列表 ==="
-          sleep 3
-          $VENV_PY loop_agent_v3/cli.py scan > /tmp/scan_result.json 2>/tmp/scan_err.log || true
+          echo "=== 汇总 ==="
           python3 -c "
           import json
-          data = json.load(open('/tmp/scan_result.json'))
-          jobs = data.get('jobs', []) if isinstance(data, dict) else data
-          print(f'找到 {len(jobs)} 个职位:')
-          for j in jobs[:8]:
+          jobs = json.load(open('/tmp/job_ids.json'))
+          print(f'累计收集 {len(jobs)} 个职位:')
+          for j in jobs[:15]:
               print(f\"  - {j.get('title','?')} | {j.get('company','?')} | {j.get('salary','?')} | id={j.get('id','?')}\")
-          # 输出前 N 个职位 ID 供投递步骤使用
-          ids = json.dumps([{'id': j.get('id',''), 'title': j.get('title',''), 'company': j.get('company','')} for j in jobs])
-          with open('/tmp/job_ids.json','w') as f:
-              f.write(ids)
-          "
-          cat /tmp/scan_err.log | head -5 || true
+          " 2>/dev/null || echo "无职位"
 
       - name: Apply to jobs
         id: apply-jobs
@@ -101,7 +131,6 @@ jobs:
             exit 0
           fi
           echo "=== 开始投递 (最多 $MAX_APPLY 个) ==="
-          SUMMARY=""
           python3 -c "
           import json, subprocess, sys
           jobs = json.load(open('/tmp/job_ids.json'))
