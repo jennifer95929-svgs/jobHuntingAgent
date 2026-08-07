@@ -15,9 +15,8 @@ on:
         description: "本轮最多投递数"
         type: number
         default: 50
-  # 每天自动投递 (北京时间 09:00 = UTC 01:00)
-  # schedule:
-#    - cron: "0 1 * * *"
+  schedule:
+    - cron: "0 1 * * *"
 
 permissions:
   contents: read
