@@ -16,9 +16,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run environment check
-        env:
-          BOSS_PROFILE_DIR: ${{ runner.home }}/boss-chrome-profile
-          BOSS_ENV_FILE: ${{ runner.home }}/job-agent.env
         run: |
+          echo "HOME=$HOME"
           chmod +x scripts/check_environment.sh
+          BOSS_PROFILE_DIR="$HOME/boss-chrome-profile" \
+          BOSS_ENV_FILE="$HOME/job-agent.env" \
           bash scripts/check_environment.sh
