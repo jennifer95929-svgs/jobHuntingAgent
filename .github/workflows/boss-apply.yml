@@ -87,37 +87,34 @@ jobs:
             sleep 3
             $VENV_PY loop_agent_v3/cli.py scan > /tmp/scan_result.json 2>/tmp/scan_err.log || true
             python3 -c "
-            import json
-            try:
-                data = json.load(open('/tmp/scan_result.json'))
-                jobs = data.get('jobs', []) if isinstance(data, dict) else data
-                print(f'找到 {len(jobs)} 个职位:')
-                for j in jobs:
-                    print(f\"  - {j.get('title','?')} | {j.get('company','?')} | {j.get('salary','?')} | id={j.get('id','?')}\")
-                ids = json.load(open('/tmp/job_ids.json')) if __import__('os').path.exists('/tmp/job_ids.json') else []
-                existing = set(j.get('id') for j in ids)
-                for j in jobs:
-                    jid = j.get('id','')
-                    if jid and jid not in existing:
-                        ids.append({'id': jid, 'title': j.get('title',''), 'company': j.get('company',''), 'salary': j.get('salary','')})
-                        existing.add(jid)
-                with open('/tmp/job_ids.json','w') as f:
-                    json.dump(ids, f, ensure_ascii=False)
-            except Exception as e:
-                print('解析失败:', e)
-            "
+import json, os
+data = json.load(open('/tmp/scan_result.json'))
+jobs = data.get('jobs', []) if isinstance(data, dict) else data
+print(f'找到 {len(jobs)} 个职位:')
+for j in jobs:
+    print(f\"  - {j.get('title','?')} | {j.get('company','?')} | {j.get('salary','?')} | id={j.get('id','?')}\")
+ids = json.load(open('/tmp/job_ids.json')) if os.path.exists('/tmp/job_ids.json') else []
+existing = set(j.get('id') for j in ids)
+for j in jobs:
+    jid = j.get('id','')
+    if jid and jid not in existing:
+        ids.append({'id': jid, 'title': j.get('title',''), 'company': j.get('company',''), 'salary': j.get('salary','')})
+        existing.add(jid)
+with open('/tmp/job_ids.json','w') as f:
+    json.dump(ids, f, ensure_ascii=False)
+"
             cat /tmp/scan_err.log | head -3 || true
             sleep 2
           done
           echo ""
           echo "=== 汇总 ==="
           python3 -c "
-          import json
-          jobs = json.load(open('/tmp/job_ids.json'))
-          print(f'累计收集 {len(jobs)} 个职位:')
-          for j in jobs[:15]:
-              print(f\"  - {j.get('title','?')} | {j.get('company','?')} | {j.get('salary','?')} | id={j.get('id','?')}\")
-          " 2>/dev/null || echo "无职位"
+import json
+jobs = json.load(open('/tmp/job_ids.json'))
+print(f'累计收集 {len(jobs)} 个职位:')
+for j in jobs[:15]:
+    print(f\"  - {j.get('title','?')} | {j.get('company','?')} | {j.get('salary','?')} | id={j.get('id','?')}\")
+" 2>/dev/null || echo "无职位"
 
       - name: Apply to jobs
         id: apply-jobs
