@@ -136,6 +136,7 @@ class BossSession:
             return False, "无法创建页面"
 
         tab_ws = None
+        dead = False
         for _ in range(10):
             time.sleep(1)
             tab = self.browser.get_tab_by_id(target_id)
@@ -144,18 +145,39 @@ class BossSession:
                 async def check():
                     async with websockets.connect(ws_url, close_timeout=8) as ws:
                         c = CDPClient(""); c._ws = ws
-                        bl = int(await c.evaluate("document.body.innerText.length") or 0)
-                        return bl
+                        # 必须同时满足:仍在 job_detail 页 + 正文非空 + 无 404/下架文案。
+                        # BOSS 404 页 4 秒后会跳转首页,拿首页当详情页就是误判漏网。
+                        raw = await c.evaluate("""(() => {
+                            const t = document.body ? document.body.innerText : '';
+                            return JSON.stringify({
+                                bl: t.length,
+                                onDetail: location.pathname.includes('/job_detail/'),
+                                dead: /页面不存在|Oops|职位已下线|该职位已停止招聘|职位不存在|已下架|404/.test(t)
+                            });
+                        })()""") or ""
+                        try:
+                            import json as _j
+                            d = _j.loads(raw)
+                        except Exception:
+                            d = {"bl": 0, "onDetail": False, "dead404": False}
+                        return d
                 loop = asyncio.new_event_loop()
                 try:
-                    bl = loop.run_until_complete(check())
+                    d = loop.run_until_complete(check())
                 except:
-                    bl = 0
+                    d = {"bl": 0, "onDetail": False, "dead404": False}
                 finally:
                     loop.close()
-                if bl > 100:
+                if d.get("dead404"):
+                    dead = True
+                    break
+                if d.get("bl", 0) > 100 and d.get("onDetail"):
                     tab_ws = ws_url
                     break
+
+        if dead:
+            self.browser.close_tab(target_id)
+            return False, "岗位已下架/过期"
 
         if not tab_ws:
             self.browser.close_tab(target_id)
@@ -167,6 +189,10 @@ class BossSession:
                 info = await c.evaluate("""
                     (() => {
                         const text = document.body.innerText;
+                        // 岗位已下架/过期:404 页无投递按钮,直接判不合格,别再让模型误投
+                        if (text.includes('页面不存在') || text.includes('Oops') || text.includes('职位已下线') || text.includes('该职位已停止招聘') || text.includes('404')) {
+                            return JSON.stringify({scale: '', company: '', isOutsource: false, dead: true});
+                        }
                         // 找公司规模 如 "20-99人" "100-499人" "50-150人" "少于50人" "10000人以上"
                         const scaleMatch = text.match(/(\\d+[-~]\\d+人|少于\\d+人|\\d+人以上|\\d+[-~]\\d+人以上)/);
                         const scale = scaleMatch ? scaleMatch[1] : '';
@@ -182,7 +208,7 @@ class BossSession:
                         }
                         // 只检查公司名是否含外包词
                         const isOutsource = /外包|派遣/.test(company);
-                        return JSON.stringify({scale, company, isOutsource});
+                        return JSON.stringify({scale, company, isOutsource, dead: false});
                     })()
                 """)
                 return info
@@ -206,17 +232,19 @@ class BossSession:
         scale = info.get("scale", "")
         company = info.get("company", "")
         is_out = info.get("isOutsource", False)
+        if info.get("dead"):
+            return False, f"岗位已下架/过期: {company}"
 
         # 判断规模
         if is_out:
             return False, f"外包/人力派遣公司: {company}"
         if scale:
             # 解析规模数字
-            nums = re.findall(r'\\d+', scale)
+            nums = re.findall(r'\d+', scale)
             if nums:
                 min_scale = int(nums[0])
-                if min_scale < 50:
-                    return False, f"公司规模小于50人 ({scale}): {company}"
+                if min_scale < 100:
+                    return False, f"公司规模小于100人 ({scale}): {company}"
         return True, f"合格: {company} ({scale})"
 
     def click_apply(self, job_id: str = None, job_title: str = "", company: str = "", reply_fn=None) -> bool:
@@ -235,6 +263,7 @@ class BossSession:
         from browser.agent_browser_cli import CDPClient
 
         tab_ws = None
+        dead = False
         for _ in range(15):
             time.sleep(1)
             tab = self.browser.get_tab_by_id(target_id)
@@ -243,18 +272,36 @@ class BossSession:
                 async def check_body():
                     async with websockets.connect(ws_url, close_timeout=10) as ws:
                         c = CDPClient(""); c._ws = ws
-                        val = await c.evaluate("document.body.innerText.length")
-                        return int(val) if val else 0
+                        raw = await c.evaluate("""(() => {
+                            const t = document.body ? document.body.innerText : '';
+                            return JSON.stringify({
+                                bl: t.length,
+                                onDetail: location.pathname.includes('/job_detail/'),
+                                dead: /页面不存在|Oops|职位已下线|该职位已停止招聘|职位不存在|已下架|404/.test(t)
+                            });
+                        })()""") or ""
+                        try:
+                            import json as _j
+                            return _j.loads(raw)
+                        except Exception:
+                            return {"bl": 0, "onDetail": False, "dead": False}
                 loop = asyncio.new_event_loop()
                 try:
-                    body_len = loop.run_until_complete(check_body())
+                    d = loop.run_until_complete(check_body())
                 except:
-                    body_len = 0
+                    d = {"bl": 0, "onDetail": False, "dead": False}
                 finally:
                     loop.close()
-                if body_len > 100:
+                if d.get("dead"):
+                    dead = True
+                    break
+                if d.get("bl", 0) > 100 and d.get("onDetail"):
                     tab_ws = ws_url
                     break
+
+        if dead:
+            self.browser.close_tab(target_id)
+            return False
 
         if not tab_ws:
             self.browser.close_tab(target_id)

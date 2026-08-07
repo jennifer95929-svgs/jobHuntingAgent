@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>求职 Agent · 大屏看板</title>
+<style>
+  :root {
+    --bg: #0b1220;
+    --bg-2: #101a2e;
+    --panel: rgba(20, 32, 54, 0.72);
+    --panel-border: rgba(94, 130, 186, 0.22);
+    --text: #e6edf7;
+    --text-muted: #8fa3c0;
+    --text-faint: #5c7090;
+    --primary: #38bdf8;
+    --primary-soft: rgba(56, 189, 248, 0.12);
+    --success: #34d399;
+    --success-soft: rgba(52, 211, 153, 0.12);
+    --warning: #fbbf24;
+    --warning-soft: rgba(251, 191, 36, 0.12);
+    --danger: #f87171;
+    --radius: 12px;
+    --glow: 0 0 24px rgba(56, 189, 248, 0.15);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background:
+      radial-gradient(1100px 500px at 15% -10%, rgba(56, 189, 248, 0.10), transparent 60%),
+      radial-gradient(900px 500px at 90% 110%, rgba(52, 211, 153, 0.08), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 20px 24px;
+    overflow-x: hidden;
+  }
+
+  /* ===== 顶栏 ===== */
+  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; gap: 16px; flex-wrap: wrap; }
+  .title-area { display: flex; align-items: center; gap: 14px; }
+  .brand-mark {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--primary), #2563eb);
+    display: grid; place-items: center; font-size: 20px; font-weight: 800; color: #fff;
+    box-shadow: var(--glow);
+  }
+  .title-area h1 { font-size: 22px; font-weight: 700; letter-spacing: 0.01em; }
+  .title-area .sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .clock { text-align: right; }
+  .clock .time { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--primary); }
+  .clock .date { font-size: 12px; color: var(--text-muted); }
+
+  /* ===== 网格 ===== */
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  @media (min-width: 1024px) {
+    .grid { grid-template-columns: repeat(12, 1fr); }
+    .span-3 { grid-column: span 3; }
+    .span-4 { grid-column: span 4; }
+    .span-5 { grid-column: span 5; }
+    .span-6 { grid-column: span 6; }
+    .span-7 { grid-column: span 7; }
+    .span-8 { grid-column: span 8; }
+    .span-9 { grid-column: span 9; }
+    .span-12 { grid-column: span 12; }
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    backdrop-filter: blur(8px);
+    min-height: 120px;
+  }
+  .panel-title {
+    font-size: 14px; font-weight: 600; color: var(--text);
+    display: flex; align-items: center; gap: 8px;
+    padding-bottom: 12px; margin-bottom: 12px;
+    border-bottom: 1px solid rgba(94, 130, 186, 0.15);
+    white-space: nowrap;
+  }
+  .panel-title::before { content: ""; width: 3px; height: 14px; border-radius: 2px; background: var(--primary); }
+  .panel-title .pill {
+    margin-left: auto; font-size: 11px; font-weight: 500;
+    padding: 2px 10px; border-radius: 999px;
+    background: var(--primary-soft); color: var(--primary);
+  }
+  .panel-title .pill.green { background: var(--success-soft); color: var(--success); }
+
+  /* ===== 统计 ===== */
+  .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  @media (min-width: 1440px) { .stats { grid-template-columns: 1fr; } }
+  .stat { position: relative; padding: 10px 0 4px; }
+  .stat-label { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+  .stat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dot-blue { background: var(--primary); box-shadow: 0 0 8px var(--primary); }
+  .dot-green { background: var(--success); box-shadow: 0 0 8px var(--success); }
+  .dot-yellow { background: var(--warning); box-shadow: 0 0 8px var(--warning); }
+  .dot-red { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
+  .stat-value { font-size: 34px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .stat-value.blue { color: var(--primary); }
+  .stat-value.green { color: var(--success); }
+  .stat-delta { font-size: 11px; color: var(--text-faint); margin-top: 2px; }
+  .stat-delta .up { color: var(--success); }
+  .stat-delta .down { color: var(--danger); }
+
+  /* ===== 流水线 ===== */
+  .pipeline { display: flex; gap: 0; }
+  .pipe {
+    flex: 1; position: relative; padding-top: 8px; text-align: center;
+  }
+  .pipe::before {
+    content: ""; position: absolute; top: 34px; left: 50%; width: 100%;
+    height: 2px; background: rgba(94, 130, 186, 0.25); z-index: 0;
+  }
+  .pipe:first-child::before { display: none; }
+  .pipe.done::before { background: linear-gradient(90deg, var(--success), var(--success)); box-shadow: 0 0 6px rgba(52, 211, 153, 0.6); }
+  .pipe.active::before { background: linear-gradient(90deg, var(--success), var(--primary)); }
+  .pipe-icon {
+    width: 34px; height: 34px; margin: 0 auto 8px; border-radius: 50%;
+    border: 2px solid var(--panel-border); background: var(--bg-2);
+    display: grid; place-items: center; font-size: 13px; color: var(--text-faint);
+    position: relative; z-index: 1; transition: all .3s;
+  }
+  .pipe.done .pipe-icon { border-color: var(--success); color: var(--success); background: var(--success-soft); }
+  .pipe.active .pipe-icon { border-color: var(--primary); color: #fff; background: var(--primary); box-shadow: 0 0 14px var(--primary); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 8px var(--primary); } 50% { box-shadow: 0 0 18px var(--primary); } }
+  .pipe-name { font-size: 12px; color: var(--text-muted); }
+  .pipe.done .pipe-name, .pipe.active .pipe-name { color: var(--text); }
+  .pipe-count { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .pipe.done .pipe-count { color: var(--success); }
+  .pipe.active .pipe-count { color: var(--primary); }
+
+  /* ===== 职位列表 ===== */
+  .job-list { display: flex; flex-direction: column; }
+  .job-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(94, 130, 186, 0.12); }
+  .job-row:last-child { border-bottom: none; }
+  .rank { font-size: 13px; font-weight: 700; color: var(--text-faint); width: 22px; text-align: center; font-variant-numeric: tabular-nums; }
+  .job-main { flex: 1; min-width: 0; }
+  .job-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .job-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .score-bar { width: 90px; flex-shrink: 0; }
+  .score-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-bottom: 3px; }
+  .score-track { height: 5px; border-radius: 999px; background: rgba(94, 130, 186, 0.2); overflow: hidden; }
+  .score-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--primary), var(--success)); width: 0; transition: width 1s ease; }
+  .salary { font-size: 14px; font-weight: 700; color: var(--success); white-space: nowrap; width: 80px; text-align: right; }
+
+  /* ===== 会话 ===== */
+  .chat-list { display: flex; flex-direction: column; }
+  .chat-row { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid rgba(94, 130, 186, 0.12); align-items: flex-start; }
+  .chat-row:last-child { border-bottom: none; }
+  .chat-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--primary-soft); color: var(--primary); display: grid; place-items: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+  .chat-body { flex: 1; min-width: 0; }
+  .chat-top { display: flex; justify-content: space-between; gap: 8px; }
+  .chat-name { font-size: 13px; font-weight: 600; }
+  .chat-time { font-size: 11px; color: var(--text-faint); white-space: nowrap; }
+  .chat-msg { font-size: 12px; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chat-badge { display: inline-flex; font-size: 11px; padding: 2px 8px; border-radius: 999px; margin-top: 5px; }
+  .chat-badge.green { background: var(--success-soft); color: var(--success); }
+  .chat-badge.yellow { background: var(--warning-soft); color: var(--warning); }
+
+  /* ===== 漏斗 ===== */
+  .funnel { display: flex; flex-direction: column; gap: 10px; padding: 4px 0; }
+  .funnel-row { display: flex; align-items: center; gap: 12px; }
+  .funnel-label { width: 72px; font-size: 12px; color: var(--text-muted); flex-shrink: 0; }
+  .funnel-bar { flex: 1; height: 30px; border-radius: 6px; background: rgba(94, 130, 186, 0.12); overflow: hidden; }
+  .funnel-fill { height: 100%; width: 0; transition: width 1s ease; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; }
+  .funnel-fill .num { font-size: 13px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.3); }
+  .f1 { background: linear-gradient(90deg, #2563eb, var(--primary)); }
+  .f2 { background: linear-gradient(90deg, #0284c7, #38bdf8); }
+  .f3 { background: linear-gradient(90deg, #0d9488, #34d399); }
+  .f4 { background: linear-gradient(90deg, #059669, #34d399); }
+  .f5 { background: linear-gradient(90deg, #16a34a, #4ade80); }
+
+  /* ===== 开关 ===== */
+  .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid rgba(94, 130, 186, 0.12); }
+  .setting-row:last-child { border-bottom: none; }
+  .setting-label { font-size: 13px; font-weight: 500; }
+  .setting-hint { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+  .switch { position: relative; width: 42px; height: 24px; flex-shrink: 0; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch-slider { position: absolute; inset: 0; background: rgba(94, 130, 186, 0.3); border-radius: 999px; transition: .2s; cursor: pointer; }
+  .switch-slider::before { content: ""; position: absolute; width: 18px; height: 18px; border-radius: 50%; background: #fff; top: 3px; left: 3px; transition: .2s; }
+  .switch input:checked + .switch-slider { background: var(--primary); box-shadow: 0 0 10px rgba(56, 189, 248, 0.5); }
+  .switch input:checked + .switch-slider::before { transform: translateX(18px); }
+  .switch input:focus-visible + .switch-slider { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+  .btn {
+    padding: 7px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;
+    border: 1px solid rgba(56, 189, 248, 0.4); background: var(--primary-soft); color: var(--primary);
+    cursor: pointer; font-family: inherit; transition: all .2s;
+  }
+  .btn:hover { background: rgba(56, 189, 248, 0.22); box-shadow: var(--glow); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px); background: rgba(15, 26, 46, 0.95); border: 1px solid var(--panel-border); color: var(--text); font-size: 13px; padding: 10px 20px; border-radius: 10px; box-shadow: 0 8px 30px rgba(0,0,0,.5); opacity: 0; transition: .3s; z-index: 100; pointer-events: none; }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pipe.active .pipe-icon, .score-fill, .funnel-fill, .toast { animation: none; transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="title-area">
+    <div class="brand-mark" aria-hidden="true">猎</div>
+    <div>
+      <h1>求职 Agent 实时看板</h1>
+      <div class="sub">BOSS直聘自动投递 · GLM-4.7 编排 · Doubao 代回复</div>
+    </div>
+  </div>
+  <div class="clock" aria-live="off">
+    <div class="time" id="clock">--:--:--</div>
+    <div class="date" id="date">----年--月--日</div>
+  </div>
+</header>
+
+<main class="grid">
+  <!-- 统计 -->
+  <section class="panel span-3" aria-label="核心指标">
+    <h2 class="panel-title">核心指标 <span class="pill">今日</span></h2>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-label"><span class="stat-dot dot-blue"></span>今日已投递</div>
+        <div class="stat-value blue" data-count="12">0</div>
+        <div class="stat-delta"><span class="up">↑ 4</span> 较昨日</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label"><span class="stat-dot dot-green"></span>匹配通过率</div>
+        <div class="stat-value green"><span data-count="68">0</span>%</div>
+        <div class="stat-delta"><span class="up">↑ 6%</span> 较昨日</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label"><span class="stat-dot dot-yellow"></span>HR 已读回复</div>
+        <div class="stat-value"><span data-count="5">0</span></div>
+        <div class="stat-delta">待跟进 3 条</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label"><span class="stat-dot dot-red"></span>面试邀约</div>
+        <div class="stat-value"><span data-count="2">0</span></div>
+        <div class="stat-delta">本周累计 6 场</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 投递流水 -->
+  <section class="panel span-9" aria-label="投递流水">
+    <h2 class="panel-title">今日投递流水 <span class="pill">任务运行中</span><button class="btn" id="btn-run" style="margin-left:auto">运行任务</button></h2>
+    <div class="pipeline" id="pipeline">
+      <div class="pipe done"><div class="pipe-icon">1</div><div class="pipe-count">128</div><div class="pipe-name">搜索职位</div></div>
+      <div class="pipe done"><div class="pipe-icon">2</div><div class="pipe-count">64</div><div class="pipe-name">批量筛选</div></div>
+      <div class="pipe done"><div class="pipe-icon">3</div><div class="pipe-count">36</div><div class="pipe-name">企业调研</div></div>
+      <div class="pipe active"><div class="pipe-icon">4</div><div class="pipe-count">24</div><div class="pipe-name">匹配打分</div></div>
+      <div class="pipe"><div class="pipe-icon">5</div><div class="pipe-count">12</div><div class="pipe-name">已投递</div></div>
+    </div>
+  </section>
+
+  <!-- 筛选漏斗 -->
+  <section class="panel span-5" aria-label="筛选漏斗">
+    <h2 class="panel-title">筛选漏斗 <span class="pill green">转化 9.4%</span></h2>
+    <div class="funnel" id="funnel">
+      <div class="funnel-row"><span class="funnel-label">搜索</span><div class="funnel-bar"><div class="funnel-fill f1" data-w="100"><span class="num">128</span></div></div></div>
+      <div class="funnel-row"><span class="funnel-label">筛选</span><div class="funnel-bar"><div class="funnel-fill f2" data-w="50"><span class="num">64</span></div></div></div>
+      <div class="funnel-row"><span class="funnel-label">调研</span><div class="funnel-bar"><div class="funnel-fill f3" data-w="28"><span class="num">36</span></div></div></div>
+      <div class="funnel-row"><span class="funnel-label">匹配</span><div class="funnel-bar"><div class="funnel-fill f4" data-w="19"><span class="num">24</span></div></div></div>
+      <div class="funnel-row"><span class="funnel-label">投递</span><div class="funnel-bar"><div class="funnel-fill f5" data-w="9"><span class="num">12</span></div></div></div>
+    </div>
+  </section>
+
+  <!-- 高匹配职位 -->
+  <section class="panel span-7" aria-label="高匹配职位">
+    <h2 class="panel-title">高匹配职位 TOP 5</h2>
+    <div class="job-list" id="job-list">
+      <div class="job-row">
+        <span class="rank">1</span>
+        <div class="job-main">
+          <div class="job-title">AI 产品经理（Agent 方向）</div>
+          <div class="job-meta">某 AI 独角兽 · 北京 · 35-60K</div>
+        </div>
+        <div class="score-bar"><div class="score-label"><span>匹配</span><span>92</span></div><div class="score-track"><div class="score-fill" data-w="92"></div></div></div>
+        <span class="salary">35-60K</span>
+      </div>
+      <div class="job-row">
+        <span class="rank">2</span>
+        <div class="job-main">
+          <div class="job-title">高级前端工程师</div>
+          <div class="job-meta">某 SaaS 公司 · 杭州 · 30-50K</div>
+        </div>
+        <div class="score-bar"><div class="score-label"><span>匹配</span><span>85</span></div><div class="score-track"><div class="score-fill" data-w="85"></div></div></div>
+        <span class="salary">30-50K</span>
+      </div>
+      <div class="job-row">
+        <span class="rank">3</span>
+        <div class="job-main">
+          <div class="job-title">开发者关系工程师</div>
+          <div class="job-meta">某开源社区 · 远程 · 25-45K</div>
+        </div>
+        <div class="score-bar"><div class="score-label"><span>匹配</span><span>78</span></div><div class="score-track"><div class="score-fill" data-w="78"></div></div></div>
+        <span class="salary">25-45K</span>
+      </div>
+      <div class="job-row">
+        <span class="rank">4</span>
+        <div class="job-main">
+          <div class="job-title">全栈工程师（Python + React）</div>
+          <div class="job-meta">某自动驾驶公司 · 上海 · 40-70K</div>
+        </div>
+        <div class="score-bar"><div class="score-label"><span>匹配</span><span>74</span></div><div class="score-track"><div class="score-fill" data-w="74"></div></div></div>
+        <span class="salary">40-70K</span>
+      </div>
+      <div class="job-row">
+        <span class="rank">5</span>
+        <div class="job-main">
+          <div class="job-title">AI Agent 应用开发工程师</div>
+          <div class="job-meta">某大厂 · 深圳 · 35-65K</div>
+        </div>
+        <div class="score-bar"><div class="score-label"><span>匹配</span><span>72</span></div><div class="score-track"><div class="score-fill" data-w="72"></div></div></div>
+        <span class="salary">35-65K</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- HR 会话 -->
+  <section class="panel span-4" aria-label="HR 会话">
+    <h2 class="panel-title">HR 会话 <span class="pill">10 分钟轮询</span></h2>
+    <div class="chat-list">
+      <div class="chat-row">
+        <div class="chat-avatar" aria-hidden="true">李</div>
+        <div class="chat-body">
+          <div class="chat-top"><span class="chat-name">李女士 · AI 独角兽</span><span class="chat-time">10:24</span></div>
+          <p class="chat-msg">看了简历，想约时间聊聊 Agent 产品方向</p>
+          <span class="chat-badge green">已代回复 · 约面试</span>
+        </div>
+      </div>
+      <div class="chat-row">
+        <div class="chat-avatar" aria-hidden="true">王</div>
+        <div class="chat-body">
+          <div class="chat-top"><span class="chat-name">王先生 · SaaS</span><span class="chat-time">09:47</span></div>
+          <p class="chat-msg">在职还是离职？最快到岗时间？</p>
+          <span class="chat-badge yellow">等待 AI 回复</span>
+        </div>
+      </div>
+      <div class="chat-row">
+        <div class="chat-avatar" aria-hidden="true">张</div>
+        <div class="chat-body">
+          <div class="chat-top"><span class="chat-name">张女士 · 开源社区</span><span class="chat-time">昨天</span></div>
+          <p class="chat-msg">看到你 star 过我们的仓库，感兴趣吗？</p>
+          <span class="chat-badge yellow">等待 AI 回复</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 参数控制 -->
+  <section class="panel span-4" aria-label="参数控制">
+    <h2 class="panel-title">Agent 参数 <span class="pill">自动运行</span></h2>
+    <div class="setting-row">
+      <div><div class="setting-label">自动投递</div><div class="setting-hint">匹配 ≥ 70 自动投递</div></div>
+      <label class="switch"><input type="checkbox" checked><span class="switch-slider"></span></label>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">AI 自动回复</div><div class="setting-hint">GLM 分析意图 · Doubao 生成</div></div>
+      <label class="switch"><input type="checkbox" checked><span class="switch-slider"></span></label>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">每日投递上限</div><div class="setting-hint">已用 12 / 50</div></div>
+      <button class="btn" id="btn-limit">调整</button>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">匹配阈值</div><div class="setting-hint">当前 70 分</div></div>
+      <button class="btn" id="btn-threshold">调整</button>
+    </div>
+  </section>
+
+  <!-- 运行日志 -->
+  <section class="panel span-4" aria-label="运行日志">
+    <h2 class="panel-title">运行日志 <span class="pill green">运行正常</span></h2>
+    <div id="log" style="font-family: 'SF Mono', Menlo, monospace; font-size: 12px; line-height: 1.9; color: var(--text-muted);">
+      <div><span style="color:var(--text-faint)">10:20:05</span> 批量筛选完成，命中 64/128</div>
+      <div><span style="color:var(--text-faint)">10:21:12</span> 企业调研完成，36 家通过</div>
+      <div><span style="color:var(--text-faint)">10:23:40</span> 匹配打分中，24 个 ≥70</div>
+      <div><span style="color:var(--text-faint)">10:24:03</span> 李女士：已代回复，约面试</div>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // 时钟
+  function tick() {
+    var now = new Date();
+    var p = function (n) { return n < 10 ? "0" + n : n; };
+    document.getElementById("clock").textContent =
+      p(now.getHours()) + ":" + p(now.getMinutes()) + ":" + p(now.getSeconds());
+    document.getElementById("date").textContent =
+      now.getFullYear() + "年" + (now.getMonth() + 1) + "月" + now.getDate() + "日";
+  }
+  tick();
+  setInterval(tick, 1000);
+
+  // Toast
+  var toast = document.getElementById("toast");
+  var toastTimer = null;
+  function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toast.classList.remove("show"); }, 2600);
+  }
+
+  // 入场动画：数字滚动 + 进度条
+  function animateCount(el) {
+    var target = parseInt(el.dataset.count, 10);
+    var start = 0, dur = 1000, t0 = null;
+    function step(ts) {
+      if (!t0) t0 = ts;
+      var p = Math.min((ts - t0) / dur, 1);
+      el.textContent = Math.round(start + (target - start) * p);
+      if (p < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+  function animateBar(el) {
+    var w = parseInt(el.dataset.w, 10);
+    requestAnimationFrame(function () { el.style.width = w + "%"; });
+  }
+
+  document.querySelectorAll("[data-count]").forEach(animateCount);
+  document.querySelectorAll(".score-fill").forEach(animateBar);
+  document.querySelectorAll(".funnel-fill").forEach(animateBar);
+
+  // 运行任务：模拟流水线推进
+  var btnRun = document.getElementById("btn-run");
+  var log = document.getElementById("log");
+
+  btnRun.addEventListener("click", function () {
+    btnRun.disabled = true;
+    btnRun.textContent = "运行中…";
+    var lines = [
+      "<div><span style='color:var(--text-faint)'>" + new Date().toTimeString().slice(0, 8) + "</span> 重新搜索职位…</div>",
+      "<div><span style='color:var(--text-faint)'>" + new Date().toTimeString().slice(0, 8) + "</span> 批量筛选，命中 71/132</div>"
+    ];
+    log.insertAdjacentHTML("afterbegin", lines.join(""));
+    showToast("新一轮投递已启动");
+
+    setTimeout(function () {
+      var steps = [
+        ["搜索职位", "1", "132", "关键词 3 组"],
+        ["批量筛选", "2", "71", "排除 46%"],
+        ["企业调研", "3", "40", "融资/口碑"],
+        ["匹配打分", "4", "26", "≥70 投递"],
+        ["已投递", "5", "13", "剩余额度 37"]
+      ];
+      document.getElementById("pipeline").innerHTML = steps.map(function (s, i) {
+        return '<div class="pipe ' + (i < 4 ? "done" : i === 4 ? "active" : "") + '"><div class="pipe-icon">' + s[1] + '</div><div class="pipe-count">' + s[2] + '</div><div class="pipe-name">' + s[0] + '</div></div>';
+      }).join("");
+      log.insertAdjacentHTML("afterbegin", "<div><span style='color:var(--text-faint)'>" + new Date().toTimeString().slice(0, 8) + "</span> 本轮完成，投递 13 个职位</div>");
+      btnRun.disabled = false;
+      btnRun.textContent = "运行任务";
+      showToast("投递完成：13 个职位");
+    }, 1800);
+  });
+
+  document.getElementById("btn-limit").addEventListener("click", function () { showToast("每日上限可接入配置"); });
+  document.getElementById("btn-threshold").addEventListener("click", function () { showToast("匹配阈值可接入配置"); });
+})();
+</script>
+</body>
+</html>

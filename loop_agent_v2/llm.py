@@ -24,11 +24,30 @@ def _http_chat(system: str, messages: list[dict], user: dict, tools: list[dict])
     last_exc = None
 
     def _sanitize(lst):
-        """确保不发送悬挂的 assistant(tool_calls):尾部 assistant 带 tool_calls 而没有紧跟 tool 响应时,直接删掉尾部。
+        """确保不发送悬挂的 assistant(tool_calls):
+        - 尾部 assistant 带 tool_calls 而没有紧跟 tool 响应时,直接删掉尾部。
+        - 历史中若某条 assistant(tool_calls) 的 tool_call_id 缺少对应 tool 响应(如多 tool_calls 残留),
+          从第一个未闭环的 assistant 处截断,保证任意历史都满足 DeepSeek 严格配对校验。
         DeepSeek 严格要求 assistant(tool_calls) 之后必须紧跟对应 tool 消息。"""
         out = list(lst)
         while out and out[-1].get("role") == "assistant" and out[-1].get("tool_calls"):
             out.pop()
+        pending: dict[int, set] = {}
+        for i, m in enumerate(out):
+            if m.get("role") == "assistant" and m.get("tool_calls"):
+                pending[i] = {tc.get("id") for tc in m["tool_calls"]}
+            elif m.get("role") == "tool":
+                rid = m.get("tool_call_id")
+                for start, ids in list(pending.items()):
+                    if rid and rid in ids:
+                        ids.discard(rid)
+                        if not ids:
+                            del pending[start]
+        if pending:
+            cut = min(pending)
+            out = out[:cut]
+            while out and out[-1].get("role") == "assistant" and out[-1].get("tool_calls"):
+                out.pop()
         return out
 
     def _build():
@@ -110,6 +129,9 @@ def llm_call(system: str, user: dict, tools: list, messages=None):
             parsed = json.loads(args)
         except json.JSONDecodeError:
             parsed = {}
+        # 只保留实际执行的那一条 tool_call:loop 层只会附加 1 条 tool 响应,
+        # 若把模型返回的全部 tool_calls 存入历史,DeepSeek 严格配对校验会 400。
+        asst_msg["tool_calls"] = [tc]
         return {"name": fn["name"], "arguments": parsed, "message": asst_msg}
 
     # 模型没请求工具(直接文字回复) → 视为本轮收尾

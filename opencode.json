@@ -1,0 +1,10 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "boss": {
+      "type": "command",
+      "command": ["loop_agent_v3/.venv/bin/python", "loop_agent_v3/server.py"],
+      "enabled": true
+    }
+  }
+}

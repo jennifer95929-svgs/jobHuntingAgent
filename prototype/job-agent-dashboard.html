@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>求职 Agent · 控制台</title>
+<style>
+  :root {
+    /* Semantic tokens */
+    --bg: #f4f6f8;
+    --surface: #ffffff;
+    --surface-2: #f8fafc;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --text-muted: #64748b;
+    --text-faint: #94a3b8;
+    --primary: #2563eb;
+    --primary-hover: #1d4ed8;
+    --primary-soft: #eff6ff;
+    --success: #059669;
+    --success-soft: #ecfdf5;
+    --warning: #d97706;
+    --warning-soft: #fffbeb;
+    --danger: #dc2626;
+    --danger-soft: #fef2f2;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --shadow-sm: 0 1px 3px rgba(15,23,42,.06);
+    --shadow-md: 0 4px 12px rgba(15,23,42,.08);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Layout */
+  .app { display: grid; grid-template-columns: 1fr; min-height: 100vh; }
+  @media (min-width: 1024px) {
+    .app { grid-template-columns: 220px 1fr; }
+  }
+
+  /* Sidebar */
+  .sidebar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    overflow-x: auto;
+  }
+  @media (min-width: 1024px) {
+    .sidebar {
+      border-right: 1px solid var(--border);
+      border-bottom: none;
+      flex-direction: column;
+      align-items: stretch;
+      padding: 20px 12px;
+      overflow: visible;
+    }
+  }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; white-space: nowrap; }
+  .brand-mark {
+    width: 28px; height: 28px; border-radius: var(--radius-sm);
+    background: var(--primary); color: #fff;
+    display: grid; place-items: center; font-size: 14px; flex-shrink: 0;
+  }
+  .nav { display: flex; gap: 4px; }
+  @media (min-width: 1024px) { .nav { flex-direction: column; margin-top: 20px; } }
+  .nav-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; border-radius: var(--radius-md);
+    font-size: 13px; color: var(--text-muted);
+    text-decoration: none; white-space: nowrap; border: none; background: transparent;
+    cursor: pointer; font-family: inherit; width: 100%; text-align: left;
+  }
+  .nav-item:hover { background: var(--surface-2); color: var(--text); }
+  .nav-item.active { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
+  .nav-icon { width: 16px; height: 16px; flex-shrink: 0; }
+
+  /* Main */
+  .main { padding: 16px; max-width: 1200px; width: 100%; margin: 0 auto; }
+  @media (min-width: 768px) { .main { padding: 24px 28px; } }
+
+  .page-header { margin-bottom: 20px; }
+  h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+  .subtitle { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+
+  /* Stat cards */
+  .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px; }
+  @media (min-width: 768px) { .stats { grid-template-columns: repeat(4, 1fr); gap: 16px; } }
+  .stat {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 14px; box-shadow: var(--shadow-sm);
+  }
+  @media (min-width: 768px) { .stat { padding: 18px; } }
+  .stat-label { font-size: 12px; color: var(--text-muted); }
+  .stat-value { font-size: 26px; font-weight: 700; margin-top: 4px; letter-spacing: -0.02em; }
+  .stat-value.accent { color: var(--primary); }
+  .stat-value.success { color: var(--success); }
+  .stat-delta { font-size: 11px; margin-top: 2px; }
+  .delta-up { color: var(--success); }
+  .delta-down { color: var(--danger); }
+
+  /* Sections */
+  .section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); margin-bottom: 20px; box-shadow: var(--shadow-sm); }
+  .section-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  @media (min-width: 768px) { .section-header { padding: 16px 20px; } }
+  .section-title { font-size: 15px; font-weight: 600; }
+  .section-body { padding: 12px 16px 16px; }
+  @media (min-width: 768px) { .section-body { padding: 16px 20px 20px; } }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px; border-radius: var(--radius-md);
+    font-size: 13px; font-weight: 500; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text);
+    font-family: inherit; transition: background .15s;
+  }
+  .btn:hover { background: var(--surface-2); }
+  .btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* Pipeline */
+  .pipeline { display: grid; gap: 8px; }
+  @media (min-width: 768px) { .pipeline { grid-template-columns: repeat(5, 1fr); gap: 12px; } }
+  .pipe-step { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px; position: relative; }
+  .pipe-step.done { border-color: var(--success); background: var(--success-soft); }
+  .pipe-step.active { border-color: var(--primary); background: var(--primary-soft); }
+  .pipe-name { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+  .pipe-step.done .pipe-name, .pipe-step.active .pipe-name { color: var(--text); }
+  .pipe-count { font-size: 20px; font-weight: 700; margin-top: 2px; }
+  .pipe-step.done .pipe-count { color: var(--success); }
+  .pipe-step.active .pipe-count { color: var(--primary); }
+  .pipe-detail { font-size: 11px; color: var(--text-faint); margin-top: 2px; }
+
+  /* Job list */
+  .job-list { display: flex; flex-direction: column; }
+  .job-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .job-row:last-child { border-bottom: none; }
+  @media (max-width: 767px) { .job-row { flex-wrap: wrap; } }
+  .job-main { flex: 1; min-width: 0; }
+  .job-title { font-size: 14px; font-weight: 600; }
+  .job-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .job-tags { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+  .tag { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-muted); }
+  .tag.hot { background: var(--warning-soft); color: var(--warning); border-color: #fde68a; }
+  .job-side { display: flex; align-items: center; gap: 8px; }
+  .salary { font-size: 14px; font-weight: 600; color: var(--success); white-space: nowrap; }
+
+  /* Score ring */
+  .score { display: grid; place-items: center; }
+  .score-ring { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; position: relative; }
+  .score-high { background: conic-gradient(var(--success) calc(var(--p) * 1%), var(--border) 0); }
+  .score-mid { background: conic-gradient(var(--warning) calc(var(--p) * 1%), var(--border) 0); }
+  .score-low { background: conic-gradient(var(--danger) calc(var(--p) * 1%), var(--border) 0); }
+  .score-ring::before { content: ""; position: absolute; inset: 4px; background: var(--surface); border-radius: 50%; }
+  .score-ring span { position: relative; z-index: 1; }
+
+  /* Chat list */
+  .chat-list { display: flex; flex-direction: column; }
+  .chat-row { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); align-items: flex-start; }
+  .chat-row:last-child { border-bottom: none; }
+  .chat-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--primary-soft); color: var(--primary); display: grid; place-items: center; font-size: 13px; font-weight: 600; flex-shrink: 0; }
+  .chat-body { flex: 1; min-width: 0; }
+  .chat-top { display: flex; justify-content: space-between; gap: 8px; }
+  .chat-name { font-size: 13px; font-weight: 600; }
+  .chat-time { font-size: 11px; color: var(--text-faint); white-space: nowrap; }
+  .chat-msg { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+  .chat-badge { display: inline-flex; align-items: center; font-size: 11px; padding: 2px 8px; border-radius: 999px; margin-top: 6px; }
+  .chat-badge.waiting { background: var(--warning-soft); color: var(--warning); }
+  .chat-badge.interview { background: var(--success-soft); color: var(--success); }
+
+  /* Empty / loading states */
+  .empty { text-align: center; padding: 32px 16px; color: var(--text-muted); }
+  .empty-icon { font-size: 28px; margin-bottom: 8px; opacity: .6; }
+  .empty-title { font-size: 14px; font-weight: 600; color: var(--text); }
+  .empty-desc { font-size: 12px; margin-top: 4px; }
+  .skeleton { border-radius: var(--radius-md); background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 50%, var(--surface-2) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+  .skeleton-line { height: 14px; border-radius: 4px; margin-bottom: 8px; }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+  /* Switch (settings) */
+  .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .setting-row:last-child { border-bottom: none; }
+  .setting-info .setting-label { font-size: 13px; font-weight: 500; }
+  .setting-info .setting-hint { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch-slider { position: absolute; inset: 0; background: var(--border); border-radius: 999px; transition: .2s; cursor: pointer; }
+  .switch-slider::before { content: ""; position: absolute; width: 18px; height: 18px; border-radius: 50%; background: #fff; top: 2px; left: 2px; transition: .2s; box-shadow: var(--shadow-sm); }
+  .switch input:checked + .switch-slider { background: var(--primary); }
+  .switch input:checked + .switch-slider::before { transform: translateX(18px); }
+  .switch input:focus-visible + .switch-slider { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(80px); background: var(--text); color: #fff; font-size: 13px; padding: 10px 18px; border-radius: var(--radius-md); box-shadow: var(--shadow-md); opacity: 0; transition: .25s; z-index: 100; pointer-events: none; }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton { animation: none; }
+    .switch-slider, .switch-slider::before, .toast { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar" aria-label="主导航">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">猎</span>
+      <span>求职 Agent</span>
+    </div>
+    <nav class="nav">
+      <a class="nav-item active" href="#" data-page="dashboard">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 8h3l2-5 3 10 2-5h2"/></svg>
+        总览
+      </a>
+      <a class="nav-item" href="#" data-page="jobs">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="10" rx="1"/><path d="M5 6h6M5 9h6"/></svg>
+        职位匹配
+      </a>
+      <a class="nav-item" href="#" data-page="chats">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H6l-3 2v-2H3a1 1 0 0 1-1-1V4z"/></svg>
+        HR 会话
+      </a>
+      <a class="nav-item" href="#" data-page="settings">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"/></svg>
+        设置
+      </a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <!-- ======== 总览 ======== -->
+    <section id="page-dashboard" aria-labelledby="dash-title">
+      <header class="page-header">
+        <h1 id="dash-title">今日总览</h1>
+        <p class="subtitle">8月6日 · 智能投递运行中</p>
+      </header>
+
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-label">今日已投递</div>
+          <div class="stat-value accent">12</div>
+          <div class="stat-delta delta-up">较昨日 +4</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">匹配通过率</div>
+          <div class="stat-value">68%</div>
+          <div class="stat-delta delta-up">较昨日 +6%</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">HR 已读回复</div>
+          <div class="stat-value success">5</div>
+          <div class="stat-delta">待跟进 3 条</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">面试邀约</div>
+          <div class="stat-value">2</div>
+          <div class="stat-delta delta-up">本周累计 6 场</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-header">
+          <h2 class="section-title">今日投递流水</h2>
+          <button class="btn btn-primary" id="btn-run">运行投递任务</button>
+        </div>
+        <div class="section-body">
+          <div class="pipeline" id="pipeline" aria-label="投递流程">
+            <div class="pipe-step done"><div class="pipe-name">搜索职位</div><div class="pipe-count">128</div><div class="pipe-detail">关键词 3 组</div></div>
+            <div class="pipe-step done"><div class="pipe-name">批量筛选</div><div class="pipe-count">64</div><div class="pipe-detail">排除 50%</div></div>
+            <div class="pipe-step done"><div class="pipe-name">企业调研</div><div class="pipe-count">36</div><div class="pipe-detail">融资/口碑</div></div>
+            <div class="pipe-step active"><div class="pipe-name">匹配打分</div><div class="pipe-count">24</div><div class="pipe-detail">≥70 投递</div></div>
+            <div class="pipe-step"><div class="pipe-name">已投递</div><div class="pipe-count">12</div><div class="pipe-detail">剩余额度 38</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-header">
+          <h2 class="section-title">高匹配职位</h2>
+          <button class="btn" id="btn-refresh">刷新</button>
+        </div>
+        <div class="section-body">
+          <div class="job-list" id="job-list">
+            <div class="job-row">
+              <div class="score" aria-label="匹配度 92">
+                <div class="score-ring score-high" style="--p:92"><span>92</span></div>
+              </div>
+              <div class="job-main">
+                <div class="job-title">AI 产品经理（Agent 方向）</div>
+                <div class="job-meta">某 AI 独角兽 · 北京 · 3-5 年 · 本科</div>
+                <div class="job-tags"><span class="tag">大模型</span><span class="tag hot">融资 D 轮</span><span class="tag">近 7 天活跃</span></div>
+              </div>
+              <div class="job-side"><span class="salary">35-60K</span></div>
+            </div>
+            <div class="job-row">
+              <div class="score" aria-label="匹配度 85">
+                <div class="score-ring score-high" style="--p:85"><span>85</span></div>
+              </div>
+              <div class="job-main">
+                <div class="job-title">高级前端工程师</div>
+                <div class="job-meta">某 SaaS 公司 · 杭州 · 5-10 年 · 本科</div>
+                <div class="job-tags"><span class="tag">React</span><span class="tag">TypeScript</span></div>
+              </div>
+              <div class="job-side"><span class="salary">30-50K</span></div>
+            </div>
+            <div class="job-row">
+              <div class="score" aria-label="匹配度 78">
+                <div class="score-ring score-mid" style="--p:78"><span>78</span></div>
+              </div>
+              <div class="job-main">
+                <div class="job-title">开发者关系工程师</div>
+                <div class="job-meta">某开源社区 · 远程 · 3 年+</div>
+                <div class="job-tags"><span class="tag">Open Source</span></div>
+              </div>
+              <div class="job-side"><span class="salary">25-45K</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======== 职位匹配 ======== -->
+    <section id="page-jobs" aria-labelledby="jobs-title" hidden>
+      <header class="page-header">
+        <h1 id="jobs-title">职位匹配</h1>
+        <p class="subtitle">今日候选 36 个职位，24 个通过匹配</p>
+      </header>
+      <div class="section">
+        <div class="section-body">
+          <div class="empty" id="jobs-empty" hidden>
+            <div class="empty-icon" aria-hidden="true">&#128269;</div>
+            <div class="empty-title">暂无匹配结果</div>
+            <div class="empty-desc">运行投递任务后，这里会展示候选职位</div>
+          </div>
+          <div class="job-list" id="jobs-full-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======== HR 会话 ======== -->
+    <section id="page-chats" aria-labelledby="chats-title" hidden>
+      <header class="page-header">
+        <h1 id="chats-title">HR 会话</h1>
+        <p class="subtitle">每 10 分钟自动检查未读，AI 代回复</p>
+      </header>
+      <div class="section">
+        <div class="section-body">
+          <div class="chat-list">
+            <div class="chat-row">
+              <div class="chat-avatar" aria-hidden="true">李</div>
+              <div class="chat-body">
+                <div class="chat-top"><span class="chat-name">李女士 · 某 AI 独角兽</span><span class="chat-time">10:24</span></div>
+                <p class="chat-msg">你好，看了你的简历，想约个时间聊聊 Agent 产品方向的工作</p>
+                <span class="chat-badge interview">已代回复 · 约面试</span>
+              </div>
+            </div>
+            <div class="chat-row">
+              <div class="chat-avatar" aria-hidden="true">王</div>
+              <div class="chat-body">
+                <div class="chat-top"><span class="chat-name">王先生 · 某 SaaS 公司</span><span class="chat-time">09:47</span></div>
+                <p class="chat-msg">请问你目前在职还是已离职？最快到岗时间？</p>
+                <span class="chat-badge waiting">等待 AI 回复</span>
+              </div>
+            </div>
+            <div class="chat-row">
+              <div class="chat-avatar" aria-hidden="true">张</div>
+              <div class="chat-body">
+                <div class="chat-top"><span class="chat-name">张女士 · 某开源社区</span><span class="chat-time">昨天</span></div>
+                <p class="chat-msg">看到你 star 过我们的仓库，感兴趣吗？</p>
+                <span class="chat-badge waiting">等待 AI 回复</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======== 设置 ======== -->
+    <section id="page-settings" aria-labelledby="settings-title" hidden>
+      <header class="page-header">
+        <h1 id="settings-title">设置</h1>
+        <p class="subtitle">Agent 行为参数</p>
+      </header>
+      <div class="section">
+        <div class="section-body">
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">自动投递</div>
+              <div class="setting-hint">匹配分 ≥ 70 的职位自动投递</div>
+            </div>
+            <label class="switch"><input type="checkbox" checked><span class="switch-slider"></span></label>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">AI 自动回复 HR</div>
+              <div class="setting-hint">GLM-4.7 分析意图，Doubao 生成回复</div>
+            </div>
+            <label class="switch"><input type="checkbox" checked><span class="switch-slider"></span></label>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">每日投递上限</div>
+              <div class="setting-hint">当前 50 次 / 天，今日已用 12 次</div>
+            </div>
+            <button class="btn" id="btn-adjust-limit">调整</button>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">匹配阈值</div>
+              <div class="setting-hint">分数越高越保守，当前 70 分</div>
+            </div>
+            <button class="btn" id="btn-adjust-threshold">调整</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  const toast = document.getElementById("toast");
+  let toastTimer = null;
+  function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toast.classList.remove("show"); }, 2400);
+  }
+
+  // 导航切换
+  const navItems = document.querySelectorAll(".nav-item");
+  const pages = {
+    dashboard: document.getElementById("page-dashboard"),
+    jobs: document.getElementById("page-jobs"),
+    chats: document.getElementById("page-chats"),
+    settings: document.getElementById("page-settings")
+  };
+
+  navItems.forEach(function (item) {
+    item.addEventListener("click", function (e) {
+      e.preventDefault();
+      navItems.forEach(function (n) { n.classList.remove("active"); });
+      item.classList.add("active");
+      Object.keys(pages).forEach(function (key) {
+        pages[key].hidden = pages[key] !== pages[item.dataset.page];
+      });
+    });
+  });
+
+  // 运行投递任务：先显示骨架屏，再填充结果
+  const pipeline = document.getElementById("pipeline");
+  const jobList = document.getElementById("job-list");
+  const btnRun = document.getElementById("btn-run");
+
+  btnRun.addEventListener("click", function () {
+    btnRun.disabled = true;
+    btnRun.textContent = "运行中…";
+    pipeline.innerHTML = "";
+    for (let i = 0; i < 5; i++) {
+      const el = document.createElement("div");
+      el.className = "pipe-step skeleton";
+      el.style.minHeight = "72px";
+      pipeline.appendChild(el);
+    }
+    jobList.innerHTML = '<div class="skeleton skeleton-line" style="height:56px"></div>'.repeat(3);
+
+    setTimeout(function () {
+      const steps = [
+        ["搜索职位", "128", "关键词 3 组"],
+        ["批量筛选", "64", "排除 50%"],
+        ["企业调研", "36", "融资/口碑"],
+        ["匹配打分", "24", "≥70 投递"],
+        ["已投递", "12", "剩余额度 38"]
+      ];
+      pipeline.innerHTML = steps.map(function (s, i) {
+        return '<div class="pipe-step ' + (i < 4 ? "done" : i === 4 ? "active" : "") + '"><div class="pipe-name">' + s[0] + '</div><div class="pipe-count">' + s[1] + '</div><div class="pipe-detail">' + s[2] + '</div></div>';
+      }).join("");
+
+      jobList.innerHTML = [
+        { title: "AI 产品经理（Agent 方向）", meta: "某 AI 独角兽 · 北京 · 3-5 年 · 本科", tags: ["大模型", "融资 D 轮"], salary: "35-60K", score: 92 },
+        { title: "高级前端工程师", meta: "某 SaaS 公司 · 杭州 · 5-10 年 · 本科", tags: ["React", "TypeScript"], salary: "30-50K", score: 85 },
+        { title: "开发者关系工程师", meta: "某开源社区 · 远程 · 3 年+", tags: ["Open Source"], salary: "25-45K", score: 78 }
+      ].map(function (j) {
+        var cls = j.score >= 85 ? "score-high" : "score-mid";
+        return '<div class="job-row"><div class="score" aria-label="匹配度 ' + j.score + '"><div class="score-ring ' + cls + '" style="--p:' + j.score + '"><span>' + j.score + '</span></div></div><div class="job-main"><div class="job-title">' + j.title + '</div><div class="job-meta">' + j.meta + '</div><div class="job-tags">' + j.tags.map(function (t) { return '<span class="tag">' + t + '</span>'; }).join("") + '</div></div><div class="job-side"><span class="salary">' + j.salary + '</span></div></div>';
+      }).join("");
+
+      btnRun.disabled = false;
+      btnRun.textContent = "运行投递任务";
+      showToast("投递任务完成：本次投递 12 个职位");
+    }, 1600);
+  });
+
+  // 刷新列表
+  document.getElementById("btn-refresh").addEventListener("click", function () {
+    showToast("列表已刷新，匹配数据更新");
+  });
+
+  // 设置按钮
+  document.getElementById("btn-adjust-limit").addEventListener("click", function () {
+    showToast("每日上限调整：可接入配置文件");
+  });
+  document.getElementById("btn-adjust-threshold").addEventListener("click", function () {
+    showToast("匹配阈值调整：可接入配置文件");
+  });
+
+  // 职位页空态展示（演示）
+  const jobsEmpty = document.getElementById("jobs-empty");
+  const jobsFull = document.getElementById("jobs-full-list");
+  jobsEmpty.hidden = false;
+  jobsFull.innerHTML = "";
+})();
+</script>
+</body>
+</html>
