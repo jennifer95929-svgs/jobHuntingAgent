@@ -77,23 +77,71 @@ jobs:
           $VENV_PY loop_agent_v3/cli.py scan > /tmp/scan_result.json 2>/tmp/scan_err.log || true
           python3 -c "
           import json
-          try:
-              data = json.load(open('/tmp/scan_result.json'))
-              jobs = data.get('jobs', []) if isinstance(data, dict) else data
-              print(f'找到 {len(jobs)} 个职位:')
-              for j in jobs[:8]:
-                  print(f\"  - {j.get('title','?')} | {j.get('company','?')} | {j.get('salary','?')} | id={j.get('id','?')}\")
-          except Exception as e:
-              print('解析失败:', e)
+          data = json.load(open('/tmp/scan_result.json'))
+          jobs = data.get('jobs', []) if isinstance(data, dict) else data
+          print(f'找到 {len(jobs)} 个职位:')
+          for j in jobs[:8]:
+              print(f\"  - {j.get('title','?')} | {j.get('company','?')} | {j.get('salary','?')} | id={j.get('id','?')}\")
+          # 输出前 N 个职位 ID 供投递步骤使用
+          ids = json.dumps([{'id': j.get('id',''), 'title': j.get('title',''), 'company': j.get('company','')} for j in jobs])
+          with open('/tmp/job_ids.json','w') as f:
+              f.write(ids)
           "
           cat /tmp/scan_err.log | head -5 || true
 
-      - name: Upload search result
+      - name: Apply to jobs
+        id: apply-jobs
+        env:
+          MAX_APPLY: ${{ inputs.max_apply }}
+        run: |
+          cd "$PROJECT_DIR"
+          VENV_PY=loop_agent_v3/.venv/bin/python
+          if [ ! -f /tmp/job_ids.json ]; then
+            echo "没有职位 ID 文件, 跳过投递"
+            exit 0
+          fi
+          echo "=== 开始投递 (最多 $MAX_APPLY 个) ==="
+          SUMMARY=""
+          python3 -c "
+          import json, subprocess, sys
+          jobs = json.load(open('/tmp/job_ids.json'))
+          max_apply = int('$MAX_APPLY')
+          results = []
+          for j in jobs[:max_apply]:
+              jid = j.get('id','')
+              if not jid:
+                  continue
+              title = j.get('title','')
+              company = j.get('company','')
+              print(f\"投递: {title} ({company}) id={jid}\", flush=True)
+              r = subprocess.run(
+                  [sys.executable, 'loop_agent_v3/cli.py', 'apply', jid, title, company],
+                  capture_output=True, text=True, timeout=60
+              )
+              out = r.stdout.strip()
+              print(f\"  结果: {out}\", flush=True)
+              try:
+                  parsed = json.loads(out)
+                  results.append({'job_id': jid, 'title': title, 'applied': parsed.get('applied'), 'reason': parsed.get('reason','')})
+              except Exception:
+                  results.append({'job_id': jid, 'title': title, 'applied': False, 'reason': out[:100]})
+          with open('/tmp/apply_results.json','w') as f:
+              json.dump(results, f, ensure_ascii=False, indent=2)
+          applied = sum(1 for r in results if r.get('applied'))
+          skipped = len(results) - applied
+          print(f'=== 投递完成: 成功 {applied}, 跳过/失败 {skipped} ===')
+          " 2>&1
+          echo ""
+          echo "=== 投递明细 ==="
+          cat /tmp/apply_results.json 2>/dev/null || echo "(无结果)"
+
+      - name: Upload apply results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: search-result
+          name: apply-results
           path: |
             /tmp/search_result.json
             /tmp/scan_result.json
+            /tmp/apply_results.json
           if-no-files-found: ignore
