@@ -70,25 +70,30 @@ jobs:
           fi
           echo "=== 搜索: $KEYWORD / $CITY ==="
           $VENV_PY loop_agent_v3/cli.py search "$KEYWORD" "$CITY" > /tmp/search_result.json 2>/tmp/search_err.log || true
+          cat /tmp/search_result.json
+          echo ""
+          echo "=== 提取职位列表 ==="
+          sleep 3
+          $VENV_PY loop_agent_v3/cli.py scan > /tmp/scan_result.json 2>/tmp/scan_err.log || true
           python3 -c "
           import json
           try:
-              data = json.load(open('/tmp/search_result.json'))
-              if isinstance(data, list):
-                  print(f'找到 {len(data)} 个职位:')
-                  for j in data[:5]:
-                      print(f\"  - {j.get('title','?')} | {j.get('company','?')} | {j.get('salary','?')} | id={j.get('id','?')}\")
-              else:
-                  print('返回:', str(data)[:500])
+              data = json.load(open('/tmp/scan_result.json'))
+              jobs = data.get('jobs', []) if isinstance(data, dict) else data
+              print(f'找到 {len(jobs)} 个职位:')
+              for j in jobs[:8]:
+                  print(f\"  - {j.get('title','?')} | {j.get('company','?')} | {j.get('salary','?')} | id={j.get('id','?')}\")
           except Exception as e:
               print('解析失败:', e)
           "
-          cat /tmp/search_err.log | head -5 || true
+          cat /tmp/scan_err.log | head -5 || true
 
       - name: Upload search result
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: search-result
-          path: /tmp/search_result.json
+          path: |
+            /tmp/search_result.json
+            /tmp/scan_result.json
           if-no-files-found: ignore
