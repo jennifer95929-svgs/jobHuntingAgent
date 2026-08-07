@@ -21,15 +21,14 @@ jobs:
     runs-on: [self-hosted, macos, local]
     timeout-minutes: 30
     env:
-      OPENAI_API_KEY: ${{ secrets.LLM_API_KEY }}
       LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
       LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
       LLM_MODEL: ${{ secrets.LLM_MODEL }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-          clean: true
+      - name: Use local project code
+        run: |
+          echo "PROJECT_DIR=$HOME/job-agent" >> "$GITHUB_ENV"
+          ls "$HOME/job-agent/loop_agent_v3/cli.py" && echo "local code OK" || echo "local code missing"
 
       - name: Ensure Chrome with debug port
         run: |
@@ -57,26 +56,18 @@ jobs:
           print('NEED_LOGIN' if 'login' in url.lower() else 'LOGIN_STATE_OK')
           "
 
-      - name: Setup v3 deps
-        run: |
-          if [ -x "loop_agent_v3/.venv/bin/python" ]; then
-            echo "using existing v3 venv"
-            loop_agent_v3/.venv/bin/python -c "import mcp, websockets, dotenv; print('deps OK')"
-          else
-            echo "creating v3 venv..."
-            python3 -m venv loop_agent_v3/.venv
-            loop_agent_v3/.venv/bin/pip install --quiet --only-binary=:all: -i https://pypi.tuna.tsinghua.edu.cn/simple mcp openai python-dotenv websockets
-            loop_agent_v3/.venv/bin/python -c "import mcp, websockets, dotenv; print('deps OK')"
-          fi
-
-      - name: Run job search + apply
-        id: apply
+      - name: Run job search
+        id: search
         env:
           KEYWORD: ${{ inputs.keyword }}
           CITY: ${{ inputs.city }}
-          MAX_APPLY: ${{ inputs.max_apply }}
         run: |
+          cd "$PROJECT_DIR"
           VENV_PY=loop_agent_v3/.venv/bin/python
+          if [ ! -x "$VENV_PY" ]; then
+            python3 -m venv loop_agent_v3/.venv
+            loop_agent_v3/.venv/bin/pip install --quiet --only-binary=:all: -i https://pypi.tuna.tsinghua.edu.cn/simple mcp openai python-dotenv websockets
+          fi
           echo "=== 搜索: $KEYWORD / $CITY ==="
           $VENV_PY loop_agent_v3/cli.py search "$KEYWORD" "$CITY" > /tmp/search_result.json 2>/tmp/search_err.log || true
           python3 -c "
@@ -94,12 +85,10 @@ jobs:
           "
           cat /tmp/search_err.log | head -5 || true
 
-      - name: Upload history artifact
+      - name: Upload search result
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: apply-history
-          path: |
-            data/history.json
-            loop_agent_v3/data/
+          name: search-result
+          path: /tmp/search_result.json
           if-no-files-found: ignore
