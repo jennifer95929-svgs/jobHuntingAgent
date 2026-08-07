@@ -59,8 +59,15 @@ jobs:
 
       - name: Setup v3 deps
         run: |
-          python3 -m pip install --quiet --user mcp openai python-dotenv websockets 2>/dev/null || true
-          python3 -c "import mcp, websockets, dotenv; print('deps OK')"
+          if [ -x "loop_agent_v3/.venv/bin/python" ]; then
+            echo "using existing v3 venv"
+            loop_agent_v3/.venv/bin/python -c "import mcp, websockets, dotenv; print('deps OK')"
+          else
+            echo "creating v3 venv..."
+            python3 -m venv loop_agent_v3/.venv
+            loop_agent_v3/.venv/bin/pip install --quiet --only-binary=:all: -i https://pypi.tuna.tsinghua.edu.cn/simple mcp openai python-dotenv websockets
+            loop_agent_v3/.venv/bin/python -c "import mcp, websockets, dotenv; print('deps OK')"
+          fi
 
       - name: Run job search + apply
         id: apply
@@ -69,11 +76,23 @@ jobs:
           CITY: ${{ inputs.city }}
           MAX_APPLY: ${{ inputs.max_apply }}
         run: |
+          VENV_PY=loop_agent_v3/.venv/bin/python
           echo "=== 搜索: $KEYWORD / $CITY ==="
-          python3 loop_agent_v3/cli.py search "$KEYWORD" "$CITY" > /tmp/search_result.json 2>/tmp/search_err.log || true
-          head -c 1500 /tmp/search_result.json
-          echo ""
-          cat /tmp/search_err.log | head -10 || true
+          $VENV_PY loop_agent_v3/cli.py search "$KEYWORD" "$CITY" > /tmp/search_result.json 2>/tmp/search_err.log || true
+          python3 -c "
+          import json
+          try:
+              data = json.load(open('/tmp/search_result.json'))
+              if isinstance(data, list):
+                  print(f'找到 {len(data)} 个职位:')
+                  for j in data[:5]:
+                      print(f\"  - {j.get('title','?')} | {j.get('company','?')} | {j.get('salary','?')} | id={j.get('id','?')}\")
+              else:
+                  print('返回:', str(data)[:500])
+          except Exception as e:
+              print('解析失败:', e)
+          "
+          cat /tmp/search_err.log | head -5 || true
 
       - name: Upload history artifact
         if: always()
