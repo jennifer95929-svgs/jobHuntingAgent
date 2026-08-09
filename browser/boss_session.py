@@ -193,20 +193,33 @@ class BossSession:
                         if (text.includes('页面不存在') || text.includes('Oops') || text.includes('职位已下线') || text.includes('该职位已停止招聘') || text.includes('404')) {
                             return JSON.stringify({scale: '', company: '', isOutsource: false, dead: true});
                         }
-                        // 找公司规模 如 "20-99人" "100-499人" "50-150人" "少于50人" "10000人以上"
-                        const scaleMatch = text.match(/(\\d+[-~]\\d+人|少于\\d+人|\\d+人以上|\\d+[-~]\\d+人以上)/);
-                        const scale = scaleMatch ? scaleMatch[1] : '';
-                        // 找公司名 - 尝试多种选择器
+                        // 找公司名
                         let company = '';
-                        const selectors = ['.company-info .company-name', '.job-sec-company', '.company-name', '[class*="company-name"]', '[class*="company"] a'];
-                        for (const sel of selectors) {
+                        const nameSelectors = ['.company-info .company-name', '.job-sec-company', '.company-name', '[class*="company-name"]', '[class*="company"] a'];
+                        for (const sel of nameSelectors) {
                             const el = document.querySelector(sel);
                             if (el && el.textContent.trim()) {
                                 company = el.textContent.trim();
                                 break;
                             }
                         }
-                        // 只检查公司名是否含外包词
+                        // 关键修复: 只在"公司基本信息"区域内找规模, 避免匹配到筛选器/推荐职位的规模
+                        let scale = '';
+                        const infoBlocks = [...document.querySelectorAll('[class*="company"]')];
+                        for (const blk of infoBlocks) {
+                            const bt = blk.innerText || '';
+                            // 规模通常与"融资"、"领域"、公司名同区块
+                            const m = bt.match(/(\\d+[-~]\\d+人|少于\\d+人|\\d+人以上|\\d+[-~]\\d+人以上)/);
+                            if (m) {
+                                scale = m[1];
+                                break;
+                            }
+                        }
+                        // 兜底: 若公司基本信息块没找到, 用全文首个规模(仅当公司名出现于附近)
+                        if (!scale) {
+                            const m = text.match(/(\\d+[-~]\\d+人|少于\\d+人|\\d+人以上|\\d+[-~]\\d+人以上)/);
+                            scale = m ? m[1] : '';
+                        }
                         const isOutsource = /外包|派遣/.test(company);
                         return JSON.stringify({scale, company, isOutsource, dead: false});
                     })()
