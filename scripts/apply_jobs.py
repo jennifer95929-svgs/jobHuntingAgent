@@ -29,19 +29,21 @@ def main() -> int:
 
     print(f"=== 开始投递 (最多 {MAX_APPLY} 个) ===")
     results = []
-    for j in jobs[:MAX_APPLY]:
+    for idx, j in enumerate(jobs[:MAX_APPLY], 1):
         jid = j.get("id", "")
         if not jid:
             continue
         title = j.get("title", "")
         company = j.get("company", "")
-        print(f"投递: {title} ({company}) id={jid}", flush=True)
+        print(f"[{idx}] 投递: {title} ({company}) id={jid}", flush=True)
         try:
             r = subprocess.run(
                 [venv_py, cli, "apply", jid, title, company],
-                capture_output=True, text=True, timeout=60,
+                capture_output=True, text=True, timeout=70,
             )
-            out = r.stdout.strip()
+            out = r.stdout.strip() or r.stderr.strip()
+        except subprocess.TimeoutExpired:
+            out = "timeout|单个投递超时70s"
         except Exception as e:  # noqa: BLE001
             out = f"error|{e}"
         print(f"  结果: {out}", flush=True)

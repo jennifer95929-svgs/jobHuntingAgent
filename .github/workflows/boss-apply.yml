@@ -100,13 +100,19 @@ jobs:
             exit 0
           fi
           echo "=== 开始投递 (最多 $MAX_APPLY 个) ==="
+          # 逐个投递: 单个失败不中断整体 (set +e)
+          set +e
           python3 "$PROJECT_DIR/scripts/apply_jobs.py" "$MAX_APPLY" 2>&1
+          APPLY_EXIT=$?
+          set -e
+          echo "apply exit code: $APPLY_EXIT"
           echo ""
           echo "=== 投递明细 ==="
           cat /tmp/apply_results.json 2>/dev/null || echo "(无结果)"
 
       - name: Upload apply results
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: apply-results
