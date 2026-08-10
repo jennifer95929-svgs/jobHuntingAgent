@@ -57,11 +57,12 @@ TOOL_DEFS = [
     ),
     (
         "apply",
-        "投递指定岗位。内置硬护栏:每日上限50、跨日去重、验证码检测、公司规模复核,不合格自动拒绝。失败时 reason 带类型前缀(duplicate/limit/captcha/company/dead/timeout/click/error),按类型处理不要盲目重试",
+        "投递指定岗位。内置硬护栏:每日上限50、跨日去重、验证码检测、公司规模复核、薪资范围(15-30K),不合格自动拒绝。失败时 reason 带类型前缀(duplicate/limit/captcha/company/dead/salary/timeout/click/error),按类型处理不要盲目重试",
         {"type": "object", "properties": {
             "job_id": {"type": "string", "description": "要投的岗位ID(必须来自 scan_page 或已 inspect 合格的岗位)"},
             "job_title": {"type": "string", "description": "岗位标题(可选,便于记录)"},
             "company": {"type": "string", "description": "公司名(可选,便于记录)"},
+            "salary": {"type": "string", "description": "薪资文本如 15-30K·16薪(可选,用于薪资范围过滤)"},
         }, "required": ["job_id"]},
     ),
     (

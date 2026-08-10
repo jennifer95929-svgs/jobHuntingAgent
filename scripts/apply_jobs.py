@@ -35,10 +35,10 @@ def main() -> int:
             continue
         title = j.get("title", "")
         company = j.get("company", "")
-        print(f"[{idx}] 投递: {title} ({company}) id={jid}", flush=True)
+        print(f"[{idx}] 投递: {title} ({company}) id={jid} 薪资={j.get('salary','?')}", flush=True)
         try:
             r = subprocess.run(
-                [venv_py, cli, "apply", jid, title, company],
+                [venv_py, cli, "apply", jid, title, company, j.get("salary", "")],
                 capture_output=True, text=True, timeout=70,
             )
             out = r.stdout.strip() or r.stderr.strip()

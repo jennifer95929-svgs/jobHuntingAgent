@@ -17,7 +17,12 @@ if PROJECT_ROOT not in sys.path:
 import history as hist
 
 
-def check_before_apply(session, job_id: str) -> dict:
+# 期望薪资范围 (K/月), 只投与此区间有重叠的岗位
+SALARY_MIN = 15
+SALARY_MAX = 30
+
+
+def check_before_apply(session, job_id: str, salary: str = "") -> dict:
     """投递前护栏检查。返回 {"ok": True} 或 {"ok": False, "reason": str}。"""
     if hist.reached_daily_limit():
         return {"ok": False, "reason": f"limit|今日已到上限 {hist.today_count()}/{hist.MAX_APPLY_PER_DAY},停止投递"}
@@ -26,12 +31,33 @@ def check_before_apply(session, job_id: str) -> dict:
     if _check_captcha():
         return {"ok": False, "reason": "captcha|检测到验证码/风控,立即停止投递"}
 
+    # 薪资过滤: 期望 15-30K, 岗位薪资区间需与之有重叠
+    if salary:
+        ok, why = _check_salary(salary)
+        if not ok:
+            return {"ok": False, "reason": f"salary|{why}"}
+
     eligible, reason = session.check_company_eligible(job_id)
     if not eligible:
         if reason and "下架" in reason:
             return {"ok": False, "reason": f"dead|公司不合格不投: {reason}"}
         return {"ok": False, "reason": f"company|公司不合格不投: {reason}"}
     return {"ok": True}
+
+
+def _check_salary(salary: str):
+    """解析 "15-30K·16薪" 格式, 检查与 [SALARY_MIN, SALARY_MAX] 是否重叠。"""
+    import re
+    m = re.match(r"\s*(\d{1,3})\s*[-~]\s*(\d{1,3})\s*K", salary)
+    if not m:
+        # 无法解析(如"面议"), 视为合格, 由人工判断
+        return True, ""
+    lo, hi = int(m.group(1)), int(m.group(2))
+    if hi < SALARY_MIN:
+        return False, f"薪资 {salary} 上限低于期望下限 {SALARY_MIN}K,跳过"
+    if lo > SALARY_MAX:
+        return False, f"薪资 {salary} 下限高于期望上限 {SALARY_MAX}K,跳过"
+    return True, ""
 
 
 def _check_captcha() -> bool:

@@ -41,11 +41,11 @@ def _session():
 _s = None
 
 
-def apply(job_id: str, job_title: str = "", company: str = "") -> dict:
-    """投递指定岗位。硬护栏:去重、每日上限、验证码、公司规模(>=50/非外包/非404)。"""
+def apply(job_id: str, job_title: str = "", company: str = "", salary: str = "") -> dict:
+    """投递指定岗位。硬护栏:去重、每日上限、验证码、公司规模(>=50/非外包/非404)、薪资范围。"""
     s = _session()
 
-    gate = guards.check_before_apply(s, job_id)
+    gate = guards.check_before_apply(s, job_id, salary)
     if not gate["ok"]:
         return {"applied": False, "job_id": job_id, "reason": gate["reason"]}
 

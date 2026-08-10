@@ -30,7 +30,8 @@ def main():
         print(json.dumps(inspect_company(sys.argv[2]), ensure_ascii=False))
     elif cmd == "apply":
         jid, title, company = sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else "", sys.argv[4] if len(sys.argv) > 4 else ""
-        print(json.dumps(apply(jid, title, company), ensure_ascii=False))
+        salary = sys.argv[5] if len(sys.argv) > 5 else ""
+        print(json.dumps(apply(jid, title, company, salary), ensure_ascii=False))
     elif cmd == "messages":
         print(json.dumps(check_messages(), ensure_ascii=False))
     elif cmd == "draft":
