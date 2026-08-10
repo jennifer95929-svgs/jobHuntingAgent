@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       keyword:
-        description: "搜索关键词（如: AI产品经理）"
+        description: "搜索关键词, 逗号分隔(穷尽组合)"
         type: string
-        default: "AI产品经理"
+        default: "AI产品经理,AI产品,产品经理(AI方向),人工智能产品经理,AI应用产品经理,AI产品负责人,AI产品专家,智能产品经理,AIGC产品经理,AI Agent产品经理,大模型产品经理"
       city:
         description: "城市（如: 深圳）"
         type: string

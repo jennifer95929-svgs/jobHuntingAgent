@@ -220,7 +220,12 @@ class BossSession:
                             const m = text.match(/(\\d+[-~]\\d+人|少于\\d+人|\\d+人以上|\\d+[-~]\\d+人以上)/);
                             scale = m ? m[1] : '';
                         }
-                        const isOutsource = /外包|派遣/.test(company);
+                        const isOutsource = /外包|派遣/.test(company) ||
+                            /外包|派遣|人力服务|人力资源服务|劳务派遣|驻场|人力外包|服务外包|猎头/.test(
+                                (document.querySelector('.job-detail-company')?.innerText || '') +
+                                (document.querySelector('[class*="job-sec"]')?.innerText || '') +
+                                (document.querySelector('.job-detail-section')?.innerText || '')
+                            );
                         return JSON.stringify({scale, company, isOutsource, dead: false});
                     })()
                 """)
