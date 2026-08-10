@@ -15,6 +15,28 @@ PROJECT = sys.argv[3] if len(sys.argv) > 3 else os.path.expanduser("~/job-agent"
 OUT = "/tmp/apply_results.json"
 
 
+def _cleanup_stale_tabs():
+    """兜底清理残留的 job_detail / chat tab(防止 subprocess 被杀导致 tab 泄漏)。"""
+    try:
+        import json
+        import urllib.request
+        tabs = json.loads(urllib.request.urlopen("http://127.0.0.1:9222/json", timeout=5).read())
+        for t in tabs:
+            url = t.get("url", "")
+            tid = t.get("id")
+            if not tid:
+                continue
+            if "/job_detail/" in url:
+                try:
+                    urllib.request.urlopen(
+                        f"http://127.0.0.1:9222/json/close/{tid}", timeout=5
+                    ).read()
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+
 def main() -> int:
     if not os.path.exists(JOB_IDS):
         print("没有职位 ID 文件, 跳过投递")
@@ -56,6 +78,8 @@ def main() -> int:
             })
         except Exception:
             results.append({"job_id": jid, "title": title, "applied": False, "reason": out[:100]})
+        # 兜底清理 subprocess 可能泄漏的 job_detail tab
+        _cleanup_stale_tabs()
 
     with open(OUT, "w", encoding="utf-8") as f:
         json.dump(results, f, ensure_ascii=False, indent=2)

@@ -231,10 +231,13 @@ class BossSession:
                             const m = clone.innerText.match(/(\\d+[-~]\\d+人|少于\\d+人|\\d+人以上|\\d+[-~]\\d+人以上)/);
                             scale = m ? m[1] : '';
                         }
-                        const isOutsource = /外包|派遣|人力服务|人力资源服务|劳务派遣|驻场|猎头/.test(company) ||
-                            /外包|派遣|人力资源服务|劳务派遣/.test(
-                                (document.querySelector('.job-detail-company')?.innerText || '')
-                            );
+                        // 全面派遣检测: 公司名 + 公司介绍 + 职位描述
+                        const companyIntro = document.querySelector('.job-detail-company')?.innerText || '';
+                        const jobDesc = document.querySelector('.job-detail-section, .job-sec-description, [class*="job-detail-text"]')?.innerText || '';
+                        const isOutsource =
+                            /外包|派遣|人力服务|人力资源服务|劳务派遣|驻场|猎头/.test(company + companyIntro) ||
+                            /劳务派遣|外包给|派遣至|驻场|人力外包|服务外包|外包项目|驻场开发|外包岗位|招聘外派/.test(jobDesc) ||
+                            /劳务派遣|人才派遣|人力派遣|员工派遣/.test(companyIntro);
                         return JSON.stringify({scale, company, isOutsource, dead: false});
                     })()
                 """)
