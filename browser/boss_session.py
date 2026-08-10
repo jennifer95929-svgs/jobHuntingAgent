@@ -193,38 +193,47 @@ class BossSession:
                         if (text.includes('页面不存在') || text.includes('Oops') || text.includes('职位已下线') || text.includes('该职位已停止招聘') || text.includes('404')) {
                             return JSON.stringify({scale: '', company: '', isOutsource: false, dead: true});
                         }
-                        // 找公司名
+                        // 找公司名 - 只从主内容区找, 排除 sider 推荐
                         let company = '';
-                        const nameSelectors = ['.company-info .company-name', '.job-sec-company', '.company-name', '[class*="company-name"]', '[class*="company"] a'];
-                        for (const sel of nameSelectors) {
+                        const nameSel = ['.job-detail-company .company-name', '.company-info .company-name',
+                                         '.job-sec-company', '[class*="job-sec-company"] .company-name',
+                                         '.job-detail-section .company-name'];
+                        for (const sel of nameSel) {
                             const el = document.querySelector(sel);
-                            if (el && el.textContent.trim()) {
+                            if (el && !el.closest('.job-sider') && el.textContent.trim()) {
                                 company = el.textContent.trim();
                                 break;
                             }
                         }
-                        // 关键修复: 只在"公司基本信息"区域内找规模, 避免匹配到筛选器/推荐职位的规模
+                        if (!company) {
+                            // 兜底: 主内容区任意 company-name
+                            const el = [...document.querySelectorAll('[class*="company-name"]')]
+                                .find(e => !e.closest('.job-sider') && e.textContent.trim());
+                            if (el) company = el.textContent.trim();
+                        }
+                        // 关键修复: 只在主内容区找规模, 排除侧边栏(job-sider)推荐职位的公司规模
                         let scale = '';
-                        const infoBlocks = [...document.querySelectorAll('[class*="company"]')];
-                        for (const blk of infoBlocks) {
+                        const mainBlocks = [...document.querySelectorAll('.job-detail-company, .job-sec, .job-detail-section, [class*="company-info"], [class*="job-sec-company"], [class*="company-intro"]')]
+                            .filter(el => !el.closest('.job-sider'));
+                        for (const blk of mainBlocks) {
                             const bt = blk.innerText || '';
-                            // 规模通常与"融资"、"领域"、公司名同区块
                             const m = bt.match(/(\\d+[-~]\\d+人|少于\\d+人|\\d+人以上|\\d+[-~]\\d+人以上)/);
                             if (m) {
                                 scale = m[1];
                                 break;
                             }
                         }
-                        // 兜底: 若公司基本信息块没找到, 用全文首个规模(仅当公司名出现于附近)
+                        // 兜底: 全文找, 但先移除 sider 区域再匹配
                         if (!scale) {
-                            const m = text.match(/(\\d+[-~]\\d+人|少于\\d+人|\\d+人以上|\\d+[-~]\\d+人以上)/);
+                            const clone = document.body.cloneNode(true);
+                            const sider = clone.querySelector('.job-sider');
+                            if (sider) sider.remove();
+                            const m = clone.innerText.match(/(\\d+[-~]\\d+人|少于\\d+人|\\d+人以上|\\d+[-~]\\d+人以上)/);
                             scale = m ? m[1] : '';
                         }
-                        const isOutsource = /外包|派遣/.test(company) ||
-                            /外包|派遣|人力服务|人力资源服务|劳务派遣|驻场|人力外包|服务外包|猎头/.test(
-                                (document.querySelector('.job-detail-company')?.innerText || '') +
-                                (document.querySelector('[class*="job-sec"]')?.innerText || '') +
-                                (document.querySelector('.job-detail-section')?.innerText || '')
+                        const isOutsource = /外包|派遣|人力服务|人力资源服务|劳务派遣|驻场|猎头/.test(company) ||
+                            /外包|派遣|人力资源服务|劳务派遣/.test(
+                                (document.querySelector('.job-detail-company')?.innerText || '')
                             );
                         return JSON.stringify({scale, company, isOutsource, dead: false});
                     })()
