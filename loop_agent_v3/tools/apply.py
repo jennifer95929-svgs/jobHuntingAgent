@@ -70,5 +70,17 @@ def apply(job_id: str, job_title: str = "", company: str = "", salary: str = "")
     ok = box.get("ok", False)
     if ok:
         hist.record_apply(job_id, company=company, title=job_title)
+        # 同步到飞书(失败不影响投递结果)
+        try:
+            from feishu_sync import sync_to_feishu
+            sync_to_feishu({
+                "company": company,
+                "title": job_title,
+                "keyword": "",
+                "city": "",
+                "salary": "",
+            })
+        except Exception:
+            pass
         return {"applied": True, "job_id": job_id, "today": hist.today_count()}
     return {"applied": False, "job_id": job_id, "reason": "click|点击投递未成功"}
