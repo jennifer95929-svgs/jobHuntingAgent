@@ -74,14 +74,23 @@ jobs:
               print("无待确认项")
               exit(0)
 
-          lines = ["## HR 消息处理结果", "", "以下 HR 消息需要你确认:", ""]
-          for d in asks:
-              lines.append(f"- **{d.get('company','')}** ({d.get('action','')}): {d.get('reason','')}")
-              lines.append(f"  - HR消息: {d.get('reason','')[:60]}")
+          lines = ["## HR 消息待办清单", "", "请逐条审批回复方案:", ""]
+          for i, d in enumerate(asks, 1):
+              action = d.get('action')
+              if action == 'ask_confirm':
+                  tag = "📄 发送简历"
+              else:
+                  tag = "💬 回复消息"
+              lines.append(f"### {i}. {tag} → {d.get('company','')}")
+              lines.append(f"- **HR消息**: {d.get('hr_msg','')}")
+              lines.append(f"- **建议回复**: {d.get('reply','(见草案文件)')}")
               lines.append("")
-          lines.append("### 处理方式")
-          lines.append("1. 运行 **Boss Chat Approval** workflow, action=send 发送已批准的回复")
-          lines.append("2. 或运行 **Boss Apply** 继续投递")
+          lines.append("---")
+          lines.append("### 如何操作")
+          lines.append("1. 在本地运行: `cd ~/job-agent && loop_agent_v3/.venv/bin/python loop_agent_v3/cli.py drafts` 查看全部草案")
+          lines.append("2. 确认后运行 **Boss Chat Approval** workflow:")
+          lines.append("   - action=`send`, draft_id=草案ID 发送指定回复")
+          lines.append("   - 或 action=`send`, draft_id 留空发送全部")
 
           body = "\n".join(lines)
           r = subprocess.run(

@@ -281,7 +281,9 @@ def chat_auto(auto_reply: bool = True) -> dict:
             }
             _save_drafts(drafts)
             results.append({"company": company, "action": "ask_confirm",
-                            "reason": "HR 要简历,已生成发送简历任务待确认"})
+                            "hr_msg": last_msg[:80],
+                            "reason": "HR 要简历,已生成发送简历任务待确认",
+                            "reply": "（确认后自动发送简历）"})
             resume_requests += 1
             continue
 
@@ -317,7 +319,9 @@ def chat_auto(auto_reply: bool = True) -> dict:
             }
             _save_drafts(drafts)
             results.append({"company": company, "action": "draft",
-                            "reason": "复杂消息,回复草案待确认"})
+                            "hr_msg": last_msg[:80],
+                            "reason": "复杂消息,回复草案待确认",
+                            "reply": reply[:100]})
 
     return {
         "handled": len(results),
@@ -414,9 +418,11 @@ def _is_rejection(msg: str) -> bool:
 
 
 def _is_resume_request(msg: str) -> bool:
-    """判断 HR 是否要求发简历。"""
+    """判断 HR 是否要求发简历(排除拒绝消息中的'简历'字样)。"""
     import re
-    return bool(re.search(r"简历|发下|发个|发一下|看看.*简历|附件|PDF|word", msg))
+    if _is_rejection(msg):
+        return False
+    return bool(re.search(r"方便发|发份|发一下|发个|发一份|简历过来|简历吗|发份详细的|发简历|附件简历|send.*resume|看一下.*简历|发下", msg, re.IGNORECASE))
 
 
 def _is_simple_message(msg: str) -> bool:
