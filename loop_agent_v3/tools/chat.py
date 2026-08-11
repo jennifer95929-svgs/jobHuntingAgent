@@ -227,3 +227,195 @@ def list_drafts() -> dict:
             for k, v in drafts.items()
         ]
     }
+
+
+def chat_auto(auto_reply: bool = True) -> dict:
+    """自动处理 HR 消息(半自动模式)。
+
+    - 简单问候/询问 → LLM 生成回复并自动发送(auto_reply=True)
+    - HR 要求发简历 → 生成"发送简历"任务, 存入 drafts 等你确认(敏感操作不自动执行)
+    - 拒绝/不匹配消息 → 不回复, 记录状态
+    """
+    s = _session()
+    s.navigate_to_chats()
+    time.sleep(3)
+
+    ws = _find_chat_tab_ws()
+    if not ws:
+        return {"error": "找不到聊天页", "handled": 0}
+
+    # 1. 提取所有会话(公司名 + 最后消息)
+    sessions = _extract_sessions(ws)
+    if not sessions:
+        return {"message": "无会话", "handled": 0}
+
+    results = []
+    replied = 0
+    resume_requests = 0
+
+    for sess in sessions:
+        company = sess.get("company", "")
+        last_msg = sess.get("last_msg", "")
+        if not company or not last_msg:
+            continue
+        if _is_self_message(last_msg):
+            continue
+        if _is_rejection(last_msg):
+            results.append({"company": company, "action": "skip", "reason": "拒绝/不匹配,不回复"})
+            continue
+        if _is_resume_request(last_msg):
+            # 敏感操作: 生成发送简历任务, 等待用户确认
+            drafts = _load_drafts()
+            key = f"resume_{abs(hash(company)) % 100000}"
+            drafts[key] = {
+                "id": key,
+                "type": "send_resume",
+                "hr_msg": last_msg[:80],
+                "company": company,
+                "status": "pending",
+                "created": time.strftime("%Y-%m-%d %H:%M:%S"),
+            }
+            _save_drafts(drafts)
+            results.append({"company": company, "action": "ask_confirm",
+                            "reason": "HR 要简历,已生成发送简历任务待确认"})
+            resume_requests += 1
+            continue
+
+        # 普通消息: LLM 生成回复
+        reply = _llm_reply(company, last_msg)
+        if not reply:
+            results.append({"company": company, "action": "skip", "reason": "LLM 未生成回复"})
+            continue
+
+        if auto_reply and _is_simple_message(last_msg):
+            # 简单消息自动回复
+            ok = s.send_chat_text(reply)
+            results.append({"company": company, "action": "auto_reply" if ok else "send_failed",
+                            "reply": reply[:50]})
+            if ok:
+                replied += 1
+            time.sleep(1.5)
+        else:
+            # 复杂消息 → 生成草案待确认
+            drafts = _load_drafts()
+            key = f"reply_{abs(hash(company)) % 100000}"
+            drafts[key] = {
+                "id": key,
+                "type": "reply",
+                "hr_msg": last_msg[:80],
+                "company": company,
+                "reply": reply,
+                "status": "pending",
+                "created": time.strftime("%Y-%m-%d %H:%M:%S"),
+            }
+            _save_drafts(drafts)
+            results.append({"company": company, "action": "draft",
+                            "reason": "复杂消息,回复草案待确认"})
+
+    return {
+        "handled": len(results),
+        "auto_replied": replied,
+        "resume_requests": resume_requests,
+        "details": results,
+    }
+
+
+def _extract_sessions(ws_url: str) -> list:
+    """提取聊天会话列表(公司名 + 最后一条消息)。"""
+    import asyncio
+    import websockets
+    from browser.agent_browser_cli import CDPClient
+
+    JS = """
+    (() => {
+      const items = [...document.querySelectorAll('[class*="chat"] [class*="item"], [class*="friend"], [class*="session"]')];
+      const seen = new Set();
+      const out = [];
+      for (const el of items) {
+        const t = (el.textContent || '').replace(/\\s+/g, ' ').trim();
+        if (t.length < 8 || seen.has(t)) continue;
+        seen.add(t);
+        // 解析: 时间+姓名+公司+角色+消息
+        const m = t.match(/^(\\d{1,2}:\\d{2})\\s*(.+?)(?:HR|招聘|猎头|顾问|总监|主管|经理|CEO|老板|BP|专员|运营|招聘者)?\\s*(.*)$/);
+        out.push({raw: t.slice(0, 120)});
+      }
+      return JSON.stringify(out.slice(0, 40));
+    })()
+    """
+
+    async def go():
+        async with websockets.connect(ws_url, close_timeout=10) as w:
+            c = CDPClient("")
+            c._ws = w
+            raw = await c.evaluate(JS)
+            try:
+                items = json.loads(raw)
+            except Exception:
+                return []
+
+            # 简单解析: 提取公司名和消息(依赖消息摘要的常见模式)
+            sessions = []
+            for it in items:
+                raw_text = it.get("raw", "")
+                # 分离消息: 找最后一个"送达/已读"后的文本, 或取后半段
+                msg_start = max(raw_text.rfind("[送达]"), raw_text.rfind("[已读]"))
+                if msg_start >= 0:
+                    msg = raw_text[msg_start + 5:].strip()
+                else:
+                    msg = raw_text.split(" ")[-1] if " " in raw_text else raw_text
+                # 公司名: 时间+姓名后的部分, 取角色词前的
+                import re
+                m = re.match(r"^[\d:]+.*?([\u4e00-\u9fa5A-Za-z0-9]+(?:科技|技术|教育|智能|网络|信息|人力|咨询|文化|实业|集团|公司|科技.*))", raw_text)
+                company = m.group(1) if m else raw_text[6:20]
+                sessions.append({"company": company, "last_msg": msg, "raw": raw_text})
+            return sessions
+
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(go())
+    except Exception:
+        return []
+    finally:
+        loop.close()
+
+
+def _is_self_message(msg: str) -> bool:
+    """判断消息是否是自己发的(我方消息特征)。"""
+    return msg.startswith("您好，我对贵司") or msg.startswith("您好,我对贵司") or "附件简历" in msg
+
+
+def _is_rejection(msg: str) -> bool:
+    """判断 HR 消息是否拒绝。"""
+    import re
+    return bool(re.search(r"不匹配|不合适|不符合|不满足|暂不|遗憾|未能|经验不符|不是很匹配|感谢关注|不考虑|不太合适|简历与|停止招聘", msg))
+
+
+def _is_resume_request(msg: str) -> bool:
+    """判断 HR 是否要求发简历。"""
+    import re
+    return bool(re.search(r"简历|发下|发个|发一下|看看.*简历|附件|PDF|word", msg))
+
+
+def _is_simple_message(msg: str) -> bool:
+    """判断是否为简单消息(可直接自动回复)。"""
+    import re
+    # 简单问候/在吗/有空吗 等
+    return bool(re.search(r"^(在吗|您好|你好|你好，|在不在|有空|方便|聊聊|在吗\?|您好，.*吗)", msg))
+
+
+def _llm_reply(company: str, hr_msg: str) -> str:
+    """用 LLM 生成个性化回复。失败时返回空。"""
+    try:
+        import sys
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".."))
+        from pipeline.llm import call_light
+        system = (
+            "你是求职者应欣(应聘AI产品经理),在BOSS直聘上回复HR的消息。"
+            "要求: 1. 语气礼貌专业简洁(30-80字) 2. 突出AI产品经理经验(大模型落地、端到端交付) 3. 不要提薪资 4. 保持真实自然,不要营销腔"
+        )
+        user = f"公司: {company}\nHR消息: {hr_msg}\n\n请生成你的回复:"
+        reply = call_light(system, user)
+        return reply.strip()[:200]
+    except Exception:
+        # 兜底模板
+        return "您好，感谢回复。我是AI产品经理，在大模型落地和端到端交付上有完整项目经验，想进一步了解下贵司这个岗位。"

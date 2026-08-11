@@ -17,7 +17,7 @@ for p in (V3_ROOT, PROJECT_ROOT):
     if p not in sys.path:
         sys.path.insert(0, p)
 
-from tools import search_jobs, scan_page, inspect_company, apply, check_messages, page_text, chat_draft, chat_send, list_drafts
+from tools import search_jobs, scan_page, inspect_company, apply, check_messages, page_text, chat_draft, chat_send, list_drafts, chat_auto
 
 
 def main():
@@ -42,6 +42,8 @@ def main():
         print(json.dumps(chat_send(draft_id=draft_id, all_pending=all_pending), ensure_ascii=False))
     elif cmd == "drafts":
         print(json.dumps(list_drafts(), ensure_ascii=False))
+    elif cmd == "auto":
+        print(json.dumps(chat_auto(), ensure_ascii=False))
     elif cmd == "page":
         print(json.dumps(page_text(), ensure_ascii=False)[:1500])
     else:

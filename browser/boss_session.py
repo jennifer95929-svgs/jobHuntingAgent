@@ -537,6 +537,92 @@ class BossSession:
             return max(int(m) for m in matches)
         return 0
 
+    def send_chat_text(self, text: str) -> bool:
+        """在聊天页当前激活会话发送文本(自动定位 textarea, 不依赖 _search_tab_ws)。"""
+        try:
+            ws = self._get_chat_ws()
+            if not ws:
+                return False
+            import asyncio, websockets
+            from browser.agent_browser_cli import CDPClient
+
+            async def do_send():
+                async with websockets.connect(ws, close_timeout=10) as wss:
+                    c = CDPClient(""); c._ws = wss
+                    await c.evaluate("document.querySelector('textarea, [contenteditable=\"true\"]')?.focus()")
+                    await asyncio.sleep(0.2)
+                    for ch in text:
+                        await c.send("Input.insertText", {"text": ch})
+                        await asyncio.sleep(0.005)
+                    await asyncio.sleep(0.5)
+                    await c.send("Input.dispatchKeyEvent", {"type": "rawKeyDown", "key": "Enter", "windowsVirtualKeyCode": 13, "code": "Enter"})
+                    await asyncio.sleep(0.05)
+                    await c.send("Input.dispatchKeyEvent", {"type": "keyUp", "key": "Enter", "windowsVirtualKeyCode": 13, "code": "Enter"})
+                    await asyncio.sleep(1)
+                    remaining = await c.evaluate("document.querySelector('textarea, [contenteditable=\"true\"]')?.value?.length || document.querySelector('textarea, [contenteditable=\"true\"]')?.textContent?.length || 0")
+                    return int(str(remaining) or 0) == 0
+
+            loop = asyncio.new_event_loop()
+            try:
+                return loop.run_until_complete(do_send())
+            finally:
+                loop.close()
+        except Exception:
+            return False
+
+    def send_resume(self) -> bool:
+        """在聊天页当前会话发送简历(点击"发送简历"按钮)。返回是否成功。"""
+        try:
+            ws = self._get_chat_ws()
+            if not ws:
+                return False
+            import asyncio, websockets
+            from browser.agent_browser_cli import CDPClient
+
+            async def do_send():
+                async with websockets.connect(ws, close_timeout=10) as wss:
+                    c = CDPClient(""); c._ws = wss
+                    # 找"发送简历"按钮并点击
+                    raw = await c.evaluate("""
+                    (() => {
+                        const btns = [...document.querySelectorAll('a, button, span, div')];
+                        for (const el of btns) {
+                            const t = (el.textContent || '').trim();
+                            if (/^发送简历$/.test(t) && el.offsetParent !== null && el.children.length === 0) {
+                                el.click();
+                                return 'clicked';
+                            }
+                        }
+                        // 兜底: 输入框上的简历图标/+"发送简历"菜单
+                        for (const el of document.querySelectorAll('[class*="file"], [class*="resume"], [class*="attach"]')) {
+                            if (el.offsetParent !== null) { el.click(); return 'icon_clicked'; }
+                        }
+                        return 'not_found';
+                    })()
+                    """)
+                    return str(raw).startswith("clicked") or str(raw).startswith("icon")
+
+            loop = asyncio.new_event_loop()
+            try:
+                return loop.run_until_complete(do_send())
+            finally:
+                loop.close()
+        except Exception:
+            return False
+
+    def _get_chat_ws(self) -> str:
+        """找到聊天页 tab 的 websocket url(优先当前激活的聊天 tab)。"""
+        import json
+        import urllib.request
+        try:
+            tabs = json.loads(urllib.request.urlopen("http://localhost:9222/json", timeout=3).read())
+            for t in tabs:
+                if t.get("type") == "page" and "/chat" in (t.get("url") or ""):
+                    return t.get("webSocketDebuggerUrl")
+        except Exception:
+            pass
+        return self._search_tab_ws or ""
+
     def navigate_to_chats(self):
         url = "https://www.zhipin.com/web/geek/chat"
         target_id = self.browser.create_tab(url)

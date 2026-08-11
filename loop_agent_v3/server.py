@@ -29,7 +29,7 @@ from mcp.types import (
 
 from tools import (
     search_jobs, scan_page, page_text, screenshot, inspect_company,
-    apply, check_messages, chat_draft, chat_send, list_drafts,
+    apply, check_messages, chat_draft, chat_send, list_drafts, chat_auto,
 )
 
 app = Server("boss-job-hunter-v3")
@@ -89,6 +89,13 @@ TOOL_DEFS = [
         {"type": "object", "properties": {}},
     ),
     (
+        "chat_auto",
+        "自动处理 HR 消息(半自动): 简单问候自动回复; HR 要简历时生成发送简历任务等用户确认; 拒绝消息跳过不回复",
+        {"type": "object", "properties": {
+            "auto_reply": {"type": "boolean", "description": "是否自动回复简单消息(默认true)"},
+        }},
+    ),
+    (
         "page_text",
         "读取当前页文本内容(截断2000字符),用于确认页面状态",
         {"type": "object", "properties": {}},
@@ -130,6 +137,8 @@ def _dispatch(name: str, args: dict) -> dict:
         return chat_send(draft_id=args.get("draft_id", ""), all_pending=bool(args.get("all_pending", False)))
     if name == "list_drafts":
         return list_drafts()
+    if name == "chat_auto":
+        return chat_auto(auto_reply=bool(args.get("auto_reply", True)))
     if name == "page_text":
         return page_text()
     if name == "screenshot":
