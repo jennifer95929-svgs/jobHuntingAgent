@@ -237,10 +237,12 @@ def chat_auto(auto_reply: bool = True) -> dict:
     - 拒绝/不匹配消息 → 不回复, 记录状态
     """
     s = _session()
-    s.navigate_to_chats()
-    time.sleep(3)
-
+    # 复用现有聊天 tab, 不重复打开(避免卡死)
     ws = _find_chat_tab_ws()
+    if not ws:
+        s.navigate_to_chats()
+        time.sleep(3)
+        ws = _find_chat_tab_ws()
     if not ws:
         return {"error": "找不到聊天页", "handled": 0}
 
@@ -259,6 +261,8 @@ def chat_auto(auto_reply: bool = True) -> dict:
         if not company or not last_msg:
             continue
         if _is_self_message(last_msg):
+            continue
+        if _is_system_message(last_msg):
             continue
         if _is_rejection(last_msg):
             results.append({"company": company, "action": "skip", "reason": "拒绝/不匹配,不回复"})
@@ -282,7 +286,10 @@ def chat_auto(auto_reply: bool = True) -> dict:
             continue
 
         # 普通消息: LLM 生成回复
-        reply = _llm_reply(company, last_msg)
+        try:
+            reply = _llm_reply(company, last_msg)
+        except Exception:
+            reply = ""
         if not reply:
             results.append({"company": company, "action": "skip", "reason": "LLM 未生成回复"})
             continue
@@ -335,9 +342,7 @@ def _extract_sessions(ws_url: str) -> list:
         const t = (el.textContent || '').replace(/\\s+/g, ' ').trim();
         if (t.length < 8 || seen.has(t)) continue;
         seen.add(t);
-        // 解析: 时间+姓名+公司+角色+消息
-        const m = t.match(/^(\\d{1,2}:\\d{2})\\s*(.+?)(?:HR|招聘|猎头|顾问|总监|主管|经理|CEO|老板|BP|专员|运营|招聘者)?\\s*(.*)$/);
-        out.push({raw: t.slice(0, 120)});
+        out.push(t.slice(0, 150));
       }
       return JSON.stringify(out.slice(0, 40));
     })()
@@ -353,21 +358,34 @@ def _extract_sessions(ws_url: str) -> list:
             except Exception:
                 return []
 
-            # 简单解析: 提取公司名和消息(依赖消息摘要的常见模式)
             sessions = []
-            for it in items:
-                raw_text = it.get("raw", "")
-                # 分离消息: 找最后一个"送达/已读"后的文本, 或取后半段
-                msg_start = max(raw_text.rfind("[送达]"), raw_text.rfind("[已读]"))
-                if msg_start >= 0:
-                    msg = raw_text[msg_start + 5:].strip()
-                else:
-                    msg = raw_text.split(" ")[-1] if " " in raw_text else raw_text
-                # 公司名: 时间+姓名后的部分, 取角色词前的
+            for raw_text in items:
                 import re
-                m = re.match(r"^[\d:]+.*?([\u4e00-\u9fa5A-Za-z0-9]+(?:科技|技术|教育|智能|网络|信息|人力|咨询|文化|实业|集团|公司|科技.*))", raw_text)
-                company = m.group(1) if m else raw_text[6:20]
-                sessions.append({"company": company, "last_msg": msg, "raw": raw_text})
+                # 格式: "2天16:08翁先生歪麦HR您有做过开放平..." 或 "11:25韦彩鑫道通科技HR您好"
+                # 1. 去掉所有非汉字前缀(时间/日期标记, 如 2天16:08、114:25、11:25)
+                t = re.sub(r"^[^一-龥]*", "", raw_text)
+                # 可能还有姓名+公司混排, 先保留原始处理
+                # 2. 去姓名(2-3个汉字 + 女士/先生)
+                t = re.sub(r"^[\u4e00-\u9fa5]{2,3}(女士|先生)?\s*", "", t)
+                # 3. 找角色词位置
+                role_m = re.search(r"(HRBP|招聘者|招聘主管|招聘经理|招聘专员|猎头顾问|HR\.|招聘|总监|CEO|BP|专员|顾问|经理|主管|老板|运营|人事|创始人|HR)", t)
+                if role_m:
+                    company = t[:role_m.start()].strip()[:25]
+                    msg = t[role_m.end():].strip()
+                else:
+                    # 无角色词: 尝试用"[送达]"/"[已读]"分割
+                    tag_m = re.search(r"\[(送达|已读)\]", t)
+                    if tag_m:
+                        company = t[:tag_m.start()].strip()[:25]
+                        msg = t[tag_m.end():].strip()
+                    else:
+                        company = t[:15].strip()
+                        msg = t
+                # 去掉消息里的送达/已读标记
+                msg = re.sub(r"^\[(送达|已读)\]\s*", "", msg).strip()
+                if not msg:
+                    msg = t[-30:]
+                sessions.append({"company": company or "未知公司", "last_msg": msg[:100], "raw": raw_text[:120]})
             return sessions
 
     loop = asyncio.new_event_loop()
@@ -382,6 +400,11 @@ def _extract_sessions(ws_url: str) -> list:
 def _is_self_message(msg: str) -> bool:
     """判断消息是否是自己发的(我方消息特征)。"""
     return msg.startswith("您好，我对贵司") or msg.startswith("您好,我对贵司") or "附件简历" in msg
+
+
+def _is_system_message(msg: str) -> bool:
+    """判断是否为系统消息(无需回复)。"""
+    return "您正在与Boss" in msg or "点击查看附件" in msg or "对方已同意" in msg or "附件简历请求已发送" in msg
 
 
 def _is_rejection(msg: str) -> bool:

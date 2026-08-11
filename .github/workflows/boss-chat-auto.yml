@@ -50,7 +50,7 @@ jobs:
           cd "$HOME/job-agent"
           VENV_PY=loop_agent_v3/.venv/bin/python
           echo "=== 自动处理 HR 消息 ==="
-          timeout 600 $VENV_PY loop_agent_v3/cli.py auto > /tmp/chat_auto_result.json 2>/tmp/chat_err.log || true
+          $VENV_PY loop_agent_v3/cli.py auto > /tmp/chat_auto_result.json 2>/tmp/chat_err.log || true
           cat /tmp/chat_auto_result.json 2>/dev/null || echo "(无结果)"
           echo ""
           cat /tmp/chat_err.log | head -5 || true
