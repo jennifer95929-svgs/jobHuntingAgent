@@ -3,12 +3,13 @@
 表格: 求职投递记录 (token + sheet_id 从 config/env 读取)
 表头: 日期 | 时间 | 关键词 | 城市 | 公司 | 岗位 | 薪资 | 状态
 """
+import json
 import os
 import sys
 import time
+import urllib.request
+import urllib.error
 from datetime import date
-
-import requests
 
 V3_ROOT = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.normpath(os.path.join(V3_ROOT, ".."))
@@ -16,27 +17,42 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 _FEISHU_BASE = "https://open.feishu.cn"
-_session = requests.Session()
 _token_cache = {"token": "", "expires_at": 0}
 
 _SPREADSHEET_TOKEN = os.getenv("JOB_SPREADSHEET_TOKEN", "HiuRsHvGRhXHZfteiIZcQsVwndh")
 _SHEET_ID = os.getenv("JOB_SHEET_ID", "9554f5")
 
 
+def _request(method: str, url: str, headers=None, body=None, timeout=15):
+    """标准库请求封装(替代 requests, 避免额外依赖)。"""
+    import ssl
+    data = None
+    if body is not None:
+        data = json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers=headers or {}, method=method)
+    # macOS venv 的 Python 可能缺系统 CA, 尝试默认上下文, 失败时兜底
+    try:
+        ctx = ssl.create_default_context()
+        with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.URLError as e:
+        if "CERTIFICATE" not in str(e):
+            raise
+        ctx = ssl._create_unverified_context()
+        with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+
+
 def _get_token() -> str:
     now = time.time()
     if _token_cache["token"] and now < _token_cache["expires_at"] - 60:
         return _token_cache["token"]
-    resp = _session.post(
+    data = _request(
+        "POST",
         f"{_FEISHU_BASE}/open-apis/auth/v3/tenant_access_token/internal",
-        json={
-            "app_id": os.getenv("FEISHU_APP_ID", ""),
-            "app_secret": os.getenv("FEISHU_APP_SECRET", ""),
-        },
-        timeout=10,
+        headers={"Content-Type": "application/json"},
+        body={"app_id": os.getenv("FEISHU_APP_ID", ""), "app_secret": os.getenv("FEISHU_APP_SECRET", "")},
     )
-    resp.raise_for_status()
-    data = resp.json()
     if data.get("code") != 0:
         raise RuntimeError(f"飞书 token 获取失败: {data.get('msg')}")
     _token_cache["token"] = data["tenant_access_token"]
@@ -47,8 +63,8 @@ def _get_token() -> str:
 def _next_row(headers) -> int:
     """读 A 列找到最后有数据的行, 返回下一行行号。"""
     url = f"{_FEISHU_BASE}/open-apis/sheets/v2/spreadsheets/{_SPREADSHEET_TOKEN}/values/{_SHEET_ID}!A:A"
-    resp = _session.get(url, headers=headers, timeout=10)
-    rows = resp.json().get("data", {}).get("valueRange", {}).get("values", [])
+    resp = _request("GET", url, headers=headers)
+    rows = resp.get("data", {}).get("valueRange", {}).get("values", [])
     return max(len(rows), 1) + 1
 
 
@@ -68,13 +84,13 @@ def _batch_write(records: list, start_row: int, headers) -> bool:
     ] for r in records]
     end_row = start_row + len(values) - 1
     body = {"valueRange": {"range": f"{_SHEET_ID}!A{start_row}:H{end_row}", "values": values}}
-    resp = _session.put(
+    resp = _request(
+        "PUT",
         f"{_FEISHU_BASE}/open-apis/sheets/v2/spreadsheets/{_SPREADSHEET_TOKEN}/values",
         headers=headers,
-        json=body,
-        timeout=15,
+        body=body,
     )
-    return resp.json().get("code") == 0
+    return resp.get("code") == 0
 
 
 def sync_to_feishu(job_info: dict) -> bool:
@@ -112,8 +128,8 @@ def backfill_from_history(history_path: str) -> dict:
     token = _get_token()
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     url = f"{_FEISHU_BASE}/open-apis/sheets/v2/spreadsheets/{_SPREADSHEET_TOKEN}/values/{_SHEET_ID}!A1:F500"
-    resp = _session.get(url, headers=headers, timeout=10)
-    existing = resp.json().get("data", {}).get("valueRange", {}).get("values", [])[1:]
+    resp = _request("GET", url, headers=headers)
+    existing = resp.get("data", {}).get("valueRange", {}).get("values", [])[1:]
     existing_keys = set()
     for row in existing:
         if len(row) >= 6:
