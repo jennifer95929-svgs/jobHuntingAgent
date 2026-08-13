@@ -7,9 +7,6 @@ on:
         description: "是否自动回复简单消息 (true=自动回, false=全部生成草案)"
         type: boolean
         default: true
-  schedule:
-    # 每 30 分钟自动处理一次 HR 消息 (UTC 时间)
-    - cron: "*/30 * * * *"
 
 permissions:
   issues: write
