@@ -21,8 +21,11 @@ import history as hist
 SALARY_MIN = 15
 SALARY_MAX = 30
 
+# 标题命中即不投的关键词(如实习/在校生)
+BAD_TITLE_KEYWORDS = ["实习", "在校生", "应届生"]
 
-def check_before_apply(session, job_id: str, salary: str = "") -> dict:
+
+def check_before_apply(session, job_id: str, job_title: str = "", salary: str = "") -> dict:
     """投递前护栏检查。返回 {"ok": True} 或 {"ok": False, "reason": str}。"""
     if hist.reached_daily_limit():
         return {"ok": False, "reason": f"limit|今日已到上限 {hist.today_count()}/{hist.MAX_APPLY_PER_DAY},停止投递"}
@@ -30,6 +33,10 @@ def check_before_apply(session, job_id: str, salary: str = "") -> dict:
         return {"ok": False, "reason": f"duplicate|岗位 {job_id} 已投过,跳过"}
     if _check_captcha():
         return {"ok": False, "reason": "captcha|检测到验证码/风控,立即停止投递"}
+
+    # 标题过滤: 实习/在校生/应届生 等岗位不投
+    if job_title and any(k in job_title for k in BAD_TITLE_KEYWORDS):
+        return {"ok": False, "reason": f"title|岗位标题含不投关键词,跳过: {job_title[:30]}"}
 
     # 薪资过滤: 期望 15-30K, 岗位薪资区间需与之有重叠
     if salary:
