@@ -57,7 +57,24 @@ jobs:
 
       - name: Verify BOSS login state
         run: |
-          python3 -c "import json,urllib.request as u; tabs=json.loads(u.urlopen('http://127.0.0.1:9222/json',timeout=5).read()); url=[t for t in tabs if t.get('type')=='page'][0].get('url',''); print('current tab:',url[:80]); print('NEED_LOGIN' if 'login' in url.lower() else 'LOGIN_STATE_OK')"
+          python3 - <<'EOF'
+          import json, urllib.request as u
+
+          def get_pages():
+              tabs = json.loads(u.urlopen('http://127.0.0.1:9222/json', timeout=5).read())
+              return [t for t in tabs if t.get('type') == 'page']
+
+          pages = get_pages()
+          if not pages:
+              # Chrome 活着但没有打开的标签页: 用 CDP 开一个
+              req = u.Request('http://127.0.0.1:9222/json/new?about:blank', method='PUT')
+              new_tab = json.loads(u.urlopen(req, timeout=5).read())
+              print('opened new tab:', new_tab.get('id', ''))
+              pages = [new_tab]
+          url = pages[0].get('url', '')
+          print('current tab:', url[:80])
+          print('NEED_LOGIN' if 'login' in url.lower() else 'LOGIN_STATE_OK')
+          EOF
 
       - name: Run job search
         id: search
