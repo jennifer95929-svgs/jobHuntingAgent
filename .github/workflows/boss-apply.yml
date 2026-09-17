@@ -34,9 +34,10 @@ jobs:
       JOB_SPREADSHEET_TOKEN: ${{ secrets.JOB_SPREADSHEET_TOKEN }}
       JOB_SHEET_ID: ${{ secrets.JOB_SHEET_ID }}
       # BOSS 页面必须经 xray 代理(10808)才能加载; runner 进程不带 proxy 变量会导致搜索静默失败
+      # 但 GitHub action 下载 / 产物上传必须走直连(no_proxy), 否则经 xray 连 GitHub 抖动会超时导致 job 被 kill
       http_proxy: http://127.0.0.1:10808
       https_proxy: http://127.0.0.1:10808
-      no_proxy: localhost,127.0.0.1,*.local,169.254/16,opencode.xieyucheng.top,api.deepseek.com
+      no_proxy: localhost,127.0.0.1,*.local,169.254/16,opencode.xieyucheng.top,api.deepseek.com,github.com,*.github.com,githubusercontent.com,*.githubusercontent.com,objects.githubusercontent.com,uploads.github.com,pypi.tuna.tsinghua.edu.cn
     steps:
       - name: Use local project code
         run: |
