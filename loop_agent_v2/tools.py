@@ -48,7 +48,7 @@ def _close_stale_job_tabs():
     except Exception:
         pass
     try:
-        tabs = json.loads(urllib.request.urlopen("http://localhost:9222/json", timeout=3).read())
+        tabs = json.loads(urllib.request.urlopen("http://localhost:9223/json", timeout=3).read())
     except Exception:
         return 0
 
@@ -180,7 +180,7 @@ def _check_captcha() -> bool:
     import json
     import urllib.request
     try:
-        tabs = json.loads(urllib.request.urlopen("http://localhost:9222/json", timeout=3).read())
+        tabs = json.loads(urllib.request.urlopen("http://localhost:9223/json", timeout=3).read())
         for t in tabs:
             if "captcha" in t.get("url", "") or "gtimg" in t.get("url", ""):
                 return True

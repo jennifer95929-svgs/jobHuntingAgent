@@ -6,7 +6,7 @@ import os
 
 
 class JsReverseMCP:
-    def __init__(self, browser_url: str = "http://127.0.0.1:9222"):
+    def __init__(self, browser_url: str = "http://127.0.0.1:9223"):
         self.browser_url = browser_url
         self.proc = None
         self._msg_id = 0

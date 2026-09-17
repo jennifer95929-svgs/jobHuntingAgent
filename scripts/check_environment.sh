@@ -4,7 +4,7 @@
 set -euo pipefail
 
 PROFILE_DIR="${BOSS_PROFILE_DIR:-$HOME/boss-chrome-profile}"
-DEBUG_PORT="${BOSS_DEBUG_PORT:-9222}"
+DEBUG_PORT="${BOSS_DEBUG_PORT:-9223}"
 CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
 echo "=== [1/5] 检查 Chrome ==="

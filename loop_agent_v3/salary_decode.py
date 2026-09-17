@@ -45,7 +45,7 @@ def build_decoder_js() -> str:
 def _get_boss_tab():
     """找到 BOSS 页面 tab。"""
     try:
-        tabs = json.loads(urllib.request.urlopen("http://localhost:9222/json", timeout=5).read())
+        tabs = json.loads(urllib.request.urlopen("http://localhost:9223/json", timeout=5).read())
         for t in tabs:
             if t.get("type") == "page" and "zhipin.com" in (t.get("url") or ""):
                 return t

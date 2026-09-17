@@ -43,13 +43,13 @@ jobs:
         run: |
           CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
           PROFILE="$HOME/boss-chrome-profile"
-          if ! curl -s --connect-timeout 3 "http://127.0.0.1:9222/json/version" > /dev/null 2>&1; then
+          if ! curl -s --connect-timeout 3 "http://127.0.0.1:9223/json/version" > /dev/null 2>&1; then
             mkdir -p "$PROFILE"
-            nohup "$CHROME" --remote-debugging-port=9222 --user-data-dir="$PROFILE" \
+            nohup "$CHROME" --remote-debugging-port=9223 --user-data-dir="$PROFILE" \
               --no-first-run --no-default-browser-check about:blank \
               > /tmp/boss-chrome.log 2>&1 &
             for i in $(seq 1 15); do
-              curl -s --connect-timeout 2 "http://127.0.0.1:9222/json/version" > /dev/null 2>&1 && break
+              curl -s --connect-timeout 2 "http://127.0.0.1:9223/json/version" > /dev/null 2>&1 && break
               sleep 1
             done
           fi
@@ -61,13 +61,13 @@ jobs:
           import json, urllib.request as u
 
           def get_pages():
-              tabs = json.loads(u.urlopen('http://127.0.0.1:9222/json', timeout=5).read())
+              tabs = json.loads(u.urlopen('http://127.0.0.1:9223/json', timeout=5).read())
               return [t for t in tabs if t.get('type') == 'page']
 
           pages = get_pages()
           if not pages:
               # Chrome 活着但没有打开的标签页: 用 CDP 开一个
-              req = u.Request('http://127.0.0.1:9222/json/new?about:blank', method='PUT')
+              req = u.Request('http://127.0.0.1:9223/json/new?about:blank', method='PUT')
               new_tab = json.loads(u.urlopen(req, timeout=5).read())
               print('opened new tab:', new_tab.get('id', ''))
               pages = [new_tab]

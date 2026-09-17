@@ -126,7 +126,7 @@ def _find_chat_tab_ws():
     import json
     import urllib.request
     try:
-        tabs = json.loads(urllib.request.urlopen("http://localhost:9222/json", timeout=3).read())
+        tabs = json.loads(urllib.request.urlopen("http://localhost:9223/json", timeout=3).read())
         for t in tabs:
             if t.get("type") == "page" and "/chat" in (t.get("url") or ""):
                 return t.get("webSocketDebuggerUrl")
@@ -202,19 +202,48 @@ def chat_send(draft_id: str = "", all_pending: bool = False) -> dict:
 
     s = _session()
     sent = 0
+    failed = []
     for tid in targets:
         d = drafts[tid]
-        # 打开对应公司聊天
         company = d.get("company", "")
-        ok = s.send_message(d["reply"])
+        dtype = d.get("type", "reply")
+        # 先点击对应公司的会话(确保发到正确窗口)
+        clicked = s.click_chat_by_company_keyword(company) if hasattr(s, "click_chat_by_company_keyword") else False
+        time.sleep(1.5)
+        # 验证当前激活窗口的公司与目标一致(防止发错窗口)
+        active_company = s.get_active_chat_company() if hasattr(s, "get_active_chat_company") else ""
+        match = False
+        if active_company and company:
+            # 双向包含判断(公司名可能被截断)
+            match = (company[:4] in active_company) or (active_company[:4] in company) or \
+                    (active_company[:2] in company and company[:2] in active_company)
+        if not match:
+            failed.append({
+                "id": tid, "company": company,
+                "reason": f"窗口验证失败: 激活窗口={active_company or '(读取不到)'}, 目标={company}, 未发送",
+            })
+            continue
+        if dtype == "send_resume":
+            ok = s.send_resume()
+        else:
+            reply = d.get("reply", "")
+            if not reply:
+                failed.append({"id": tid, "reason": "无回复内容"})
+                continue
+            ok = s.send_chat_text(reply)
         if ok:
             d["status"] = "sent"
             d["sent_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
             sent += 1
+        else:
+            failed.append({"id": tid, "company": company, "reason": f"{dtype} 发送失败"})
         time.sleep(1.5)
 
     _save_drafts(drafts)
-    return {"sent": sent, "message": f"已发送 {sent} 条回复"}
+    msg = f"已发送 {sent} 条"
+    if failed:
+        msg += f", 失败 {len(failed)} 条: " + "; ".join(f.get('company','') or f.get('reason','') for f in failed)
+    return {"sent": sent, "message": msg, "failed": failed}
 
 
 def list_drafts() -> dict:

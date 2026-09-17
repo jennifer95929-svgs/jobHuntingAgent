@@ -53,7 +53,7 @@ def _find_search_tab_ws():
     import json
     import urllib.request
     try:
-        tabs = json.loads(urllib.request.urlopen("http://localhost:9222/json", timeout=3).read())
+        tabs = json.loads(urllib.request.urlopen("http://localhost:9223/json", timeout=3).read())
         for t in tabs:
             if t.get("type") == "page" and "web/geek/jobs" in (t.get("url") or ""):
                 return t.get("webSocketDebuggerUrl")

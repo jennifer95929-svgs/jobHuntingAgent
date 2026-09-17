@@ -27,13 +27,13 @@ jobs:
         run: |
           CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
           PROFILE="$HOME/boss-chrome-profile"
-          if ! curl -s --connect-timeout 3 "http://127.0.0.1:9222/json/version" > /dev/null 2>&1; then
+          if ! curl -s --connect-timeout 3 "http://127.0.0.1:9223/json/version" > /dev/null 2>&1; then
             mkdir -p "$PROFILE"
-            nohup "$CHROME" --remote-debugging-port=9222 --user-data-dir="$PROFILE" \
+            nohup "$CHROME" --remote-debugging-port=9223 --user-data-dir="$PROFILE" \
               --no-first-run --no-default-browser-check about:blank \
               > /tmp/boss-chrome.log 2>&1 &
             for i in $(seq 1 15); do
-              curl -s --connect-timeout 2 "http://127.0.0.1:9222/json/version" > /dev/null 2>&1 && break
+              curl -s --connect-timeout 2 "http://127.0.0.1:9223/json/version" > /dev/null 2>&1 && break
               sleep 1
             done
           fi

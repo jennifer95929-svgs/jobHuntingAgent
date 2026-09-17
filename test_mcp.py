@@ -2,7 +2,7 @@
 import subprocess, json, sys, time, os
 
 proc = subprocess.Popen(
-    ["npx", "js-reverse-mcp", "--browserUrl", "http://127.0.0.1:9222"],
+    ["npx", "js-reverse-mcp", "--browserUrl", "http://127.0.0.1:9223"],
     stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
     text=True, bufsize=0,
 )

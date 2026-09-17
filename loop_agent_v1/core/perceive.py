@@ -7,7 +7,7 @@ CHAT_URL = "https://www.zhipin.com/web/geek/chat"
 
 
 def _get_tab_ws():
-    tabs = json.loads(urllib.request.urlopen("http://localhost:9222/json", timeout=3).read())
+    tabs = json.loads(urllib.request.urlopen("http://localhost:9223/json", timeout=3).read())
     for t in tabs:
         if t.get("type") == "page" and CHAT_URL in t.get("url", ""):
             return t.get("webSocketDebuggerUrl")

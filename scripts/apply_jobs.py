@@ -20,7 +20,7 @@ def _cleanup_stale_tabs():
     try:
         import json
         import urllib.request
-        tabs = json.loads(urllib.request.urlopen("http://127.0.0.1:9222/json", timeout=5).read())
+        tabs = json.loads(urllib.request.urlopen("http://127.0.0.1:9223/json", timeout=5).read())
         for t in tabs:
             url = t.get("url", "")
             tid = t.get("id")
@@ -29,7 +29,7 @@ def _cleanup_stale_tabs():
             if "/job_detail/" in url:
                 try:
                     urllib.request.urlopen(
-                        f"http://127.0.0.1:9222/json/close/{tid}", timeout=5
+                        f"http://127.0.0.1:9223/json/close/{tid}", timeout=5
                     ).read()
                 except Exception:
                     pass

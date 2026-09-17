@@ -110,7 +110,7 @@ class AgentBrowser:
 
     def _get_boss_tab(self) -> Optional[dict]:
         try:
-            resp = urllib.request.urlopen("http://localhost:9222/json", timeout=3)
+            resp = urllib.request.urlopen("http://localhost:9223/json", timeout=3)
             tabs = json.loads(resp.read())
             for t in tabs:
                 if t.get("type") == "page" and "zhipin" in t.get("url", ""):
@@ -125,7 +125,7 @@ class AgentBrowser:
     def _run_cdp(self, fn_name: str, *args, **kwargs):
         tab = self._get_boss_tab()
         if not tab:
-            raise RuntimeError("No browser tab found. Is Chrome running with --remote-debugging-port=9222?")
+            raise RuntimeError("No browser tab found. Is Chrome running with --remote-debugging-port=9223?")
 
         async def _run():
             async with websockets.connect(tab["webSocketDebuggerUrl"], close_timeout=5) as ws:
@@ -166,7 +166,7 @@ class AgentBrowser:
     def create_tab(self, url: str) -> Optional[str]:
         try:
             browser_ws = json.loads(
-                urllib.request.urlopen("http://localhost:9222/json/version", timeout=3).read()
+                urllib.request.urlopen("http://localhost:9223/json/version", timeout=3).read()
             )["webSocketDebuggerUrl"]
 
             async def _run():
@@ -185,7 +185,7 @@ class AgentBrowser:
     def close_tab(self, target_id: str):
         try:
             browser_ws = json.loads(
-                urllib.request.urlopen("http://localhost:9222/json/version", timeout=3).read()
+                urllib.request.urlopen("http://localhost:9223/json/version", timeout=3).read()
             )["webSocketDebuggerUrl"]
 
             async def _run():
@@ -200,7 +200,7 @@ class AgentBrowser:
 
     def get_tab_by_url(self, url_pattern: str) -> Optional[dict]:
         try:
-            resp = urllib.request.urlopen("http://localhost:9222/json", timeout=3)
+            resp = urllib.request.urlopen("http://localhost:9223/json", timeout=3)
             tabs = json.loads(resp.read())
             for t in tabs:
                 if url_pattern in t.get("url", ""):
@@ -211,7 +211,7 @@ class AgentBrowser:
 
     def get_tab_by_id(self, target_id: str) -> Optional[dict]:
         try:
-            resp = urllib.request.urlopen("http://localhost:9222/json", timeout=3)
+            resp = urllib.request.urlopen("http://localhost:9223/json", timeout=3)
             tabs = json.loads(resp.read())
             for t in tabs:
                 if t.get("id") == target_id:

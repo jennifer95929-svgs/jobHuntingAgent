@@ -95,7 +95,7 @@ arrow(7.6, 5.0 - 0.0, 7.6, 2.5, "", color="#bbc", radius=0.0)  # loop→llm 已�
 arrow(8.0, loop_y - 0.2, 5.1, 2.0, "execute 派发", radius=0.25)
 
 box(5.7, 0.5, 3.6, 1.5, "浏览器驱动(复用V1)",
-    "BossSession / CDP\n Chrome --remote-debugging-port=9222\n 真实登录态·真实页面",
+    "BossSession / CDP\n Chrome --remote-debugging-port=9223\n 真实登录态·真实页面",
     fc="#f3edfb", ec="#8a5bbf")
 arrow(5.1, 1.3, 5.68, 1.3, "调工具", color="#5b8cc9")
 

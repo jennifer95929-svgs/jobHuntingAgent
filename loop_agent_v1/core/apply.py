@@ -31,7 +31,7 @@ def _call_with_timeout(fn, timeout: int = 15):
 
 def _check_captcha() -> bool:
     try:
-        tabs = json.loads(urllib.request.urlopen("http://localhost:9222/json", timeout=3).read())
+        tabs = json.loads(urllib.request.urlopen("http://localhost:9223/json", timeout=3).read())
         for t in tabs:
             if "captcha" in t.get("url", "") or "gtimg" in t.get("url", ""):
                 return True
@@ -42,7 +42,7 @@ def _check_captcha() -> bool:
 
 def _close_stale_tabs(boss_session):
     try:
-        tabs = json.loads(urllib.request.urlopen("http://localhost:9222/json", timeout=3).read())
+        tabs = json.loads(urllib.request.urlopen("http://localhost:9223/json", timeout=3).read())
         boss_ids = set()
         for t in tabs:
             if t.get("type") == "page" and "zhipin" in t.get("url", ""):
@@ -50,7 +50,7 @@ def _close_stale_tabs(boss_session):
         import asyncio, websockets
         from browser.agent_browser_cli import CDPClient
         browser_ws = json.loads(urllib.request.urlopen(
-            "http://localhost:9222/json/version", timeout=3).read()
+            "http://localhost:9223/json/version", timeout=3).read()
         )["webSocketDebuggerUrl"]
         async def close_all():
             async with websockets.connect(browser_ws, close_timeout=5) as ws:

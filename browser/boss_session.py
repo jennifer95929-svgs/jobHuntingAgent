@@ -37,7 +37,7 @@ class BossSession:
     def ensure_browser(self, headed: bool = True):
         ok = self.browser.check_alive()
         if not ok:
-            print("Chrome 未连接，请确保 Chrome 已启动并开放调试端口 9222")
+            print("Chrome 未连接，请确保 Chrome 已启动并开放调试端口 9223")
         return self.browser
 
     def search_jobs(self, keyword: str, city: str):
@@ -488,6 +488,7 @@ class BossSession:
                 }})()
                 """)
                 return bool(result)
+
         loop = asyncio.new_event_loop()
         try:
             return loop.run_until_complete(do())
@@ -495,6 +496,113 @@ class BossSession:
             return False
         finally:
             loop.close()
+
+    def get_active_chat_company(self) -> str:
+        """读取当前激活聊天会话的公司名(用于发送前验证窗口是否匹配)。
+
+        策略: 1) 找带 active/selected 类的会话项; 2) 否则读消息区顶部的会话标题。
+        """
+        try:
+            ws = self._get_chat_ws()
+            if not ws:
+                return ""
+            import asyncio, websockets
+            from browser.agent_browser_cli import CDPClient
+
+            async def do():
+                async with websockets.connect(ws, close_timeout=10) as wss:
+                    c = CDPClient(""); c._ws = wss
+                    raw = await c.evaluate("""
+                    (() => {
+                        // 1. 带 active/selected 的会话项
+                        const items = [...document.querySelectorAll('[class*="friend"], [class*="session"], [class*="item"]')];
+                        for (const el of items) {
+                            const cls = (el.className || '').toLowerCase();
+                            if (/active|selected|current/.test(cls) && el.offsetParent !== null && el.textContent.length > 5) {
+                                let t = el.textContent.replace(/\\s+/g, ' ').trim();
+                                t = t.replace(/^[^一-龥]*/, '');
+                                t = t.replace(/^[\\u4e00-\\u9fa5]{2,3}(女士|先生)?\\s*/, '');
+                                const role = t.search(/(HR|招聘|猎头|顾问|总监|经理|主管|老板|BP|专员|运营|人事|CEO)/);
+                                if (role > 0) t = t.slice(0, role);
+                                return t.slice(0, 30);
+                            }
+                        }
+                        // 2. 兜底: 消息区标题(通常第一个 friend 项是激活会话)
+                        for (const el of items) {
+                            if (el.offsetParent !== null && (el.className || '').includes('friend') && el.textContent.length > 5) {
+                                let t = el.textContent.replace(/\\s+/g, ' ').trim();
+                                t = t.replace(/^[^一-龥]*/, '');
+                                t = t.replace(/^[\\u4e00-\\u9fa5]{2,3}(女士|先生)?\\s*/, '');
+                                const role = t.search(/(HR|招聘|猎头|顾问|总监|经理|主管|老板|BP|专员|运营|人事|CEO)/);
+                                if (role > 0) t = t.slice(0, role);
+                                return t.slice(0, 30);
+                            }
+                        }
+                        return '';
+                    })()
+                    """)
+                    return str(raw or "")
+            loop = asyncio.new_event_loop()
+            try:
+                return loop.run_until_complete(do())
+            finally:
+                loop.close()
+        except Exception:
+            return ""
+
+    def click_chat_by_company_keyword(self, company: str) -> bool:
+        """点击聊天页中公司名匹配的会话(用 dispatchEvent 完整模拟点击)。
+
+        公司名可能被截断(如"深圳市展动力人才..."), 用关键词前4字匹配。
+        """
+        try:
+            ws = self._get_chat_ws()
+            if not ws:
+                return False
+            import asyncio, websockets
+            from browser.agent_browser_cli import CDPClient
+
+            # 公司名提取关键词: 去掉常见前后缀
+            kw = company
+            for pre in ["深圳市", "广东", "北京", "上海", "广州", "杭州", "成都"]:
+                if kw.startswith(pre):
+                    kw = kw[len(pre):]
+                    break
+            kw = kw[:4]
+
+            async def do():
+                async with websockets.connect(ws, close_timeout=10) as wss:
+                    c = CDPClient(""); c._ws = wss
+                    raw = await c.evaluate(f"""
+                    (() => {{
+                        const items = [...document.querySelectorAll('[class*="item"],[class*="friend"],[class*="session"]')];
+                        // 先滚动包含目标关键词的会话到可见位置(同步 scrollIntoView)
+                        let target = null;
+                        for (const el of items) {{
+                            const t = el.textContent || '';
+                            if (t.includes({json.dumps(kw)})) {{ target = el; break; }}
+                        }}
+                        if (!target) return false;
+                        target.scrollIntoView({{block: 'center'}});
+                        // 直接点击(无需等 async, python 侧已 sleep)
+                        if (target.offsetParent !== null) {{
+                            target.dispatchEvent(new MouseEvent('mousedown', {{bubbles: true}}));
+                            target.dispatchEvent(new MouseEvent('mouseup', {{bubbles: true}}));
+                            target.dispatchEvent(new MouseEvent('click', {{bubbles: true}}));
+                            return true;
+                        }}
+                        return false;
+                    }})()
+                    """)
+                    return bool(raw)
+
+            loop = asyncio.new_event_loop()
+            try:
+                return loop.run_until_complete(do())
+            finally:
+                loop.close()
+        except Exception:
+            return False
 
     def send_message(self, text: str):
         if not self._search_tab_ws:
@@ -615,7 +723,7 @@ class BossSession:
         import json
         import urllib.request
         try:
-            tabs = json.loads(urllib.request.urlopen("http://localhost:9222/json", timeout=3).read())
+            tabs = json.loads(urllib.request.urlopen("http://localhost:9223/json", timeout=3).read())
             for t in tabs:
                 if t.get("type") == "page" and "/chat" in (t.get("url") or ""):
                     return t.get("webSocketDebuggerUrl")
@@ -667,7 +775,7 @@ class BossSession:
         tab_id = None
         for _ in range(5):
             try:
-                tabs = json.loads(urllib.request.urlopen("http://localhost:9222/json", timeout=3).read())
+                tabs = json.loads(urllib.request.urlopen("http://localhost:9223/json", timeout=3).read())
             except:
                 break
             for t in tabs:
@@ -680,7 +788,7 @@ class BossSession:
         if tab_id:
             try:
                 browser_ws = json.loads(
-                    urllib.request.urlopen("http://localhost:9222/json/version", timeout=3).read()
+                    urllib.request.urlopen("http://localhost:9223/json/version", timeout=3).read()
                 )["webSocketDebuggerUrl"]
                 async def do_close():
                     async with websockets.connect(browser_ws, close_timeout=5) as ws:

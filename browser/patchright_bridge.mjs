@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync } from 'fs';
 let browser, page;
 
 async function connect() {
-  browser = await chromium.connectOverCDP('http://127.0.0.1:9222');
+  browser = await chromium.connectOverCDP('http://127.0.0.1:9223');
   const pages = browser.contexts()[0]?.pages() || [];
   page = pages[0] || await browser.newPage();
   return { ok: true, pages: pages.length };
