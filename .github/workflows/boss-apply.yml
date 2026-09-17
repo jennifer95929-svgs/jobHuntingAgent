@@ -33,6 +33,13 @@ jobs:
       FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
       JOB_SPREADSHEET_TOKEN: ${{ secrets.JOB_SPREADSHEET_TOKEN }}
       JOB_SHEET_ID: ${{ secrets.JOB_SHEET_ID }}
+      # BOSS 页面必须经 xray 代理(10808)才能加载; runner 进程不带 proxy 变量会导致搜索静默失败
+      http_proxy: http://127.0.0.1:10808
+      https_proxy: http://127.0.0.1:10808
+      HTTP_PROXY: http://127.0.0.1:10808
+      HTTPS_PROXY: http://127.0.0.1:10808
+      no_proxy: localhost,127.0.0.1,*.local,169.254/16,opencode.xieyucheng.top,api.deepseek.com
+      NO_PROXY: localhost,127.0.0.1,*.local,169.254/16,opencode.xieyucheng.top,api.deepseek.com
     steps:
       - name: Use local project code
         run: |
